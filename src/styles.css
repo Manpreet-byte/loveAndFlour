@@ -1,7 +1,15 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 
 :root {
   --bg: #fbf7f1;
+  /* Design tokens: updated for premium feel */
+  --accent-2: #f29a2a; /* warm gold */
+  --muted-cream: #fff8f2;
+  --card-bg: rgba(255,255,255,0.96);
+  --glass: rgba(255,255,255,0.6);
+  --elev-1: 0 12px 28px rgba(43,39,48,0.08);
+  --elev-2: 0 20px 60px rgba(43,39,48,0.12);
+  --soft-border: rgba(224, 210, 197, 0.6);
   --bg-deep: #f6efe5;
   --surface: rgba(255, 253, 248, 0.92);
   --surface-2: rgba(246, 236, 224, 0.72);
@@ -27,6 +35,22 @@
   --radius-md: 12px;
 }
 
+/* Utility: responsive container that keeps hero and edge-to-edge sections centered */
+.container-wide {
+  width: min(1400px, 100%);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* Type scale */
+:root {
+  --type-xxl: clamp(3rem, 4.2vw + 1rem, 5rem);
+  --type-xl: clamp(2.1rem, 3.2vw + 0.5rem, 3.6rem);
+  --type-lg: clamp(1.5rem, 1.6vw + 1rem, 1.8rem);
+  --type-md: 1rem;
+  --type-sm: 0.9rem;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -37,7 +61,7 @@ html {
 
 body {
   margin: 0;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Poppins', sans-serif;
   color: var(--text);
   background:
     radial-gradient(circle at top left, rgba(229, 138, 31, 0.08), transparent 28%),
@@ -106,7 +130,7 @@ button {
 .h2,
 .hero-title,
 .footer-brand-name {
-  font-family: 'Cormorant Garamond', serif;
+  font-family: 'Poppins', sans-serif;
   letter-spacing: -0.045em;
   margin: 0;
 }
@@ -117,7 +141,7 @@ button {
 }
 
 .h3 {
-  font-family: 'Cormorant Garamond', serif;
+  font-family: 'Poppins', sans-serif;
   letter-spacing: -0.03em;
   margin: 0;
   font-size: 1.56rem;
@@ -125,7 +149,7 @@ button {
 }
 
 .h4 {
-  font-family: 'Cormorant Garamond', serif;
+  font-family: 'Poppins', sans-serif;
   margin: 0 0 10px;
   font-size: 1.25rem;
   letter-spacing: -0.02em;
@@ -155,7 +179,7 @@ button {
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: 0px;
+  border-radius: 999px;
   padding: 12px 22px;
   font-weight: 700;
   letter-spacing: 0.01em;
@@ -208,19 +232,20 @@ button {
 .site-header {
   position: sticky;
   top: 0;
-  z-index: 20;
-  background: rgba(255, 252, 245, 0.82);
-  backdrop-filter: blur(14px);
-  border-bottom: 1px solid rgba(99, 77, 55, 0.1);
-  box-shadow: 0 10px 24px rgba(64, 49, 32, 0.06);
+  z-index: 40;
+  background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(255,251,244,0.84));
+  backdrop-filter: blur(18px) saturate(110%);
+  border-bottom: 1px solid var(--soft-border);
+  box-shadow: 0 8px 30px rgba(43,39,48,0.08);
 }
 
 .header-inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  min-height: 92px;
+  gap: 18px;
+  min-height: 100px;
+  padding: 8px 0;
 }
 
 .brand {
@@ -234,14 +259,15 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 8px 12px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(99, 77, 55, 0.08);
+  padding: 10px 16px;
+  border-radius: 20px;
+  background: var(--glass);
+  border: 1px solid rgba(99,77,55,0.06);
+  box-shadow: var(--elev-1);
 }
 
 .brand-logo {
-  height: 42px;
+  height: 48px;
   width: auto;
   display: block;
 }
@@ -253,11 +279,13 @@ button {
 }
 
 .nav-link {
-  font-size: 0.92rem;
-  color: var(--text);
-  padding: 10px 14px;
-  border-radius: 999px;
-  transition: background-color 180ms ease, color 180ms ease, transform 180ms ease;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  padding: 10px 16px;
+  border-radius: 12px;
+  transition: background-color 220ms cubic-bezier(.2,.8,.2,1), color 180ms ease, transform 160ms ease;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .nav-link:focus-visible,
@@ -272,7 +300,7 @@ button {
 
 .nav-link:hover,
 .nav-link.is-active {
-  background: rgba(229, 138, 31, 0.1);
+  background: linear-gradient(90deg, rgba(242,154,42,0.06), rgba(242,154,42,0.02));
   color: var(--text);
 }
 
@@ -313,7 +341,14 @@ button {
 }
 
 .header-cta {
-  display: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: linear-gradient(135deg,var(--accent-2),var(--accent));
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(242,154,42,0.18);
 }
 
 .mobile-nav {
@@ -541,7 +576,7 @@ button {
 
 .hero-like-title {
   margin: 0;
-  font-family: 'Cormorant Garamond', serif;
+  font-family: 'Poppins', sans-serif;
   font-weight: 700;
   letter-spacing: -0.05em;
   line-height: 1.05;
@@ -742,7 +777,7 @@ button {
 
 .home-hero-title {
   margin: 0;
-  font-family: 'Cormorant Garamond', serif;
+  font-family: 'Poppins', sans-serif;
   text-transform: uppercase;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -963,7 +998,7 @@ button {
 
 .hero-mosaic-title {
   margin: 0;
-  font-family: 'Cormorant Garamond', serif;
+  font-family: 'Poppins', sans-serif;
   font-size: clamp(2.5rem, 2.9vw + 1.3rem, 5rem);
   line-height: 0.92;
   letter-spacing: -0.06em;
@@ -1268,7 +1303,7 @@ button {
 
 .testimonial-slide blockquote::before {
   content: '“';
-  font-family: 'Cormorant Garamond', serif;
+  font-family: 'Poppins', sans-serif;
   font-size: 2.4rem;
   line-height: 0;
   margin-right: 6px;
@@ -1452,6 +1487,30 @@ button {
 .card.course-card {
   display: grid;
   height: 100%;
+}
+
+.course-card-media img {
+  transition: transform 0.6s cubic-bezier(.2,.8,.2,1), filter 0.45s ease;
+}
+
+.card.course-card:hover .course-card-media img {
+  transform: scale(1.04);
+  filter: saturate(1.05) contrast(1.02);
+}
+
+.course-card-add {
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, var(--accent-2), var(--accent));
+  color: #fff;
+  box-shadow: 0 8px 22px rgba(242,154,42,0.14);
+  border: none;
+}
+
+.course-card-add[disabled] {
+  opacity: 0.7;
+  filter: grayscale(0.25);
+  cursor: default;
 }
 
 .cards-grid {
@@ -1927,13 +1986,68 @@ button {
 .prose-block h2,
 .prose-block h3 {
   color: var(--text);
-  font-family: 'Cormorant Garamond', serif;
+  font-family: 'Poppins', sans-serif;
   letter-spacing: -0.02em;
 }
 
 .prose-block img {
   max-width: 100%;
   height: auto;
+}
+
+/* Elementor content normalization inside CMS HTML blobs */
+.prose-block .elementor {
+  max-width: 100%;
+}
+.prose-block .elementor-widget-container {
+  max-width: 100%;
+}
+.prose-block .elementor h1,
+.prose-block .elementor h2,
+.prose-block .elementor h3,
+.prose-block .elementor h4 {
+  color: var(--text);
+  font-family: 'Poppins', sans-serif;
+  margin-top: 0.6em;
+  margin-bottom: 0.4em;
+}
+.prose-block .elementor p,
+.prose-block .elementor ul,
+.prose-block .elementor ol,
+.prose-block .elementor li {
+  color: var(--text-secondary);
+  line-height: 1.8;
+}
+.prose-block .elementor a.elementor-button,
+.prose-block .elementor .elementor-button {
+  display: inline-block;
+  background: var(--button);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 12px;
+  text-decoration: none;
+}
+.prose-block .elementor hr {
+  border: none;
+  height: 1px;
+  background: var(--soft-border);
+  margin: 24px 0;
+}
+.prose-block .elementor details {
+  background: rgba(255,255,255,0.9);
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--soft-border);
+}
+.prose-block .elementor summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.prose-block .elementor img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: var(--elev-1);
 }
 
 /* Recipe detail */
@@ -2482,6 +2596,53 @@ button {
   box-shadow: 0 12px 28px rgba(64, 49, 32, 0.05);
 }
 
+.auth-shell {
+  max-width: 720px;
+}
+
+.auth-card {
+  max-width: 520px;
+  margin: 18px auto 0;
+  display: grid;
+  gap: 14px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.field-label {
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+}
+
+.form-error {
+  margin: 0;
+  color: #b42318;
+  background: rgba(180, 35, 24, 0.08);
+  border: 1px solid rgba(180, 35, 24, 0.18);
+  border-radius: 12px;
+  padding: 10px 12px;
+  line-height: 1.5;
+}
+
+.auth-alt {
+  text-align: center;
+  margin: 0;
+}
+
+.link {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.profile-grid {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
 .list {
   margin: 0;
   padding-left: 18px;
@@ -2656,7 +2817,7 @@ button {
 
 .about-float-number {
   margin: 0;
-  font-family: 'Cormorant Garamond', serif;
+  font-family: 'Poppins', sans-serif;
   font-size: 2rem;
   letter-spacing: -0.03em;
 }
@@ -2825,7 +2986,7 @@ button {
 }
 
 .footer-heading {
-  font-family: 'Cormorant Garamond', serif;
+  font-family: 'Poppins', sans-serif;
   letter-spacing: -0.02em;
   margin: 0 0 12px;
   font-size: 1.1rem;

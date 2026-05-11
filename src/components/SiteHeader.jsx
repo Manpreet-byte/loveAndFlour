@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { terms } from '../data/seededContent';
 import { useCartStore } from '../store/cartStore';
+import { useAuthStore } from '../store/authStore';
 
 const courseCategoryOrder = [
   'upcoming-live-workshops',
@@ -16,6 +17,8 @@ export default function SiteHeader({ onCartClick }) {
   const [openMenu, setOpenMenu] = useState(null);
   const navRef = useRef(null);
   const cartCount = useCartStore((state) => state.items.length);
+  const token = useAuthStore((state) => state.token);
+  const logout = useAuthStore((state) => state.logout);
 
   const courseCategories = (terms?.courseCategories ?? [])
     .slice()
@@ -171,9 +174,20 @@ export default function SiteHeader({ onCartClick }) {
             </svg>
             {cartCount > 0 ? <span className="cart-badge">{cartCount}</span> : null}
           </button>
-          <NavLink className="button button-solid header-cta" to="/courses">
-            Explore
-          </NavLink>
+          {token ? (
+            <>
+              <NavLink className="button button-solid header-cta" to="/profile">
+                Profile
+              </NavLink>
+              <button className="button button-solid header-cta" type="button" onClick={logout}>
+                Logout
+              </button>
+            </>
+          ) : (
+            <NavLink className="button button-solid header-cta" to="/login">
+              Login
+            </NavLink>
+          )}
         </div>
       </div>
 

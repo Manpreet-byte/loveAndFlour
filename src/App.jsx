@@ -13,6 +13,9 @@ import RecipeLibraryPage from './pages/RecipeLibraryPage';
 import NewsletterPage from './pages/NewsletterPage';
 import WpPageDetailPage from './pages/WpPageDetailPage';
 import { useLocation } from 'react-router-dom';
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
+import ProfilePage from './pages/ProfilePage';
 
 export default function App() {
   const [cartOpen, setCartOpen] = useState(false);
@@ -31,6 +34,9 @@ export default function App() {
         <Route path="/courses/:slug" element={<CourseDetailPage />} />
         <Route path="/recipe-library" element={<RecipeLibraryPage />} />
         <Route path="/recipes/:slug" element={<RecipeDetailPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/newsletter" element={<NewsletterPage />} />
