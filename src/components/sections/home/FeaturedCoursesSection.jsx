@@ -13,9 +13,9 @@ export default function FeaturedCoursesSection() {
       <div className="container">
         <div className="home-featured-head">
           <SectionHeading
-            badge="New & Noteworthy"
-            title="Trending workshops"
-            subtitle="A curated view of the latest workshops from the academy."
+            badge="Top Products"
+            title="Top Products"
+            subtitle="A curated selection of workshops to start with."
           />
         </div>
 
@@ -28,4 +28,3 @@ export default function FeaturedCoursesSection() {
     </section>
   );
 }
-
