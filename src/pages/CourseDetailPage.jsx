@@ -1,10 +1,14 @@
 import { Link, useParams } from 'react-router-dom';
 import SectionHeading from '../components/SectionHeading';
 import { findCourseBySlug } from '../data/seededContent';
+import { useCartStore } from '../store/cartStore';
 
 export default function CourseDetailPage() {
   const { slug } = useParams();
   const course = findCourseBySlug(slug);
+  const addCourse = useCartStore((state) => state.addCourse);
+  const removeCourse = useCartStore((state) => state.removeCourse);
+  const inCart = useCartStore((state) => state.items.some((item) => item.id === course?.id));
 
   if (!course) {
     return (
@@ -38,6 +42,19 @@ export default function CourseDetailPage() {
             <img src={course.featuredImage} alt={course.title} />
           </div>
         ) : null}
+
+        <div className="course-detail-actions">
+          <button
+            className="button button-solid"
+            type="button"
+            onClick={() => (inCart ? removeCourse(course.id) : addCourse(course))}
+          >
+            {inCart ? 'Remove from cart' : 'Add to cart'}
+          </button>
+          <p className="fineprint course-detail-cart-note">
+            {inCart ? 'This workshop is already in your cart.' : 'Add it now and keep browsing the rest of the workshops.'}
+          </p>
+        </div>
 
         {course.excerptHtml ? (
           <div className="panel prose-block" dangerouslySetInnerHTML={{ __html: course.excerptHtml }} />

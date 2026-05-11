@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import SiteFooter from './components/SiteFooter';
 import SiteHeader from './components/SiteHeader';
+import CartDrawer from './components/CartDrawer';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import AboutPage from './pages/AboutPage';
 import ContactPage from './pages/ContactPage';
@@ -10,11 +12,19 @@ import RecipeDetailPage from './pages/RecipeDetailPage';
 import RecipeLibraryPage from './pages/RecipeLibraryPage';
 import NewsletterPage from './pages/NewsletterPage';
 import WpPageDetailPage from './pages/WpPageDetailPage';
+import { useLocation } from 'react-router-dom';
 
 export default function App() {
+  const [cartOpen, setCartOpen] = useState(false);
+  const location = useLocation();
+
+  useEffect(() => {
+    setCartOpen(false);
+  }, [location.pathname]);
+
   return (
     <div className="page">
-      <SiteHeader />
+      <SiteHeader onCartClick={() => setCartOpen(true)} />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/courses" element={<CoursesPage />} />
@@ -27,6 +37,7 @@ export default function App() {
         <Route path="/pages/:slug" element={<WpPageDetailPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
       <SiteFooter />
     </div>
   );

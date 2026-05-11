@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { terms } from '../data/seededContent';
+import { useCartStore } from '../store/cartStore';
 
 const courseCategoryOrder = [
   'upcoming-live-workshops',
@@ -10,10 +11,11 @@ const courseCategoryOrder = [
   'e-book',
 ];
 
-export default function SiteHeader() {
+export default function SiteHeader({ onCartClick }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState(null);
   const navRef = useRef(null);
+  const cartCount = useCartStore((state) => state.items.length);
 
   const courseCategories = (terms?.courseCategories ?? [])
     .slice()
@@ -152,9 +154,15 @@ export default function SiteHeader() {
           </div>
         </nav>
 
-        <NavLink className="button button-solid header-cta" to="/courses">
-          Explore
-        </NavLink>
+        <div className="header-actions">
+          <button className="icon-button header-cart" type="button" onClick={onCartClick} aria-label={`Open cart (${cartCount})`}>
+            <span aria-hidden="true">🛒</span>
+            {cartCount > 0 ? <span className="cart-badge">{cartCount}</span> : null}
+          </button>
+          <NavLink className="button button-solid header-cta" to="/courses">
+            Explore
+          </NavLink>
+        </div>
       </div>
 
       {mobileOpen && (
