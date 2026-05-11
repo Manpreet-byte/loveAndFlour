@@ -9,10 +9,10 @@
   --blush: rgba(250, 240, 228, 0.82);
   --border: rgba(99, 77, 55, 0.12);
 
-  --accent: #e44a1f;
-  --accent-hover: #c83d19;
-  --accent-soft: rgba(228, 74, 31, 0.12);
-  --ring: rgba(228, 74, 31, 0.28);
+  --accent: #ef5a33;
+  --accent-hover: #e44a1f;
+  --accent-soft: rgba(239, 90, 51, 0.12);
+  --ring: rgba(239, 90, 51, 0.28);
   --button: var(--accent);
   --button-hover: var(--accent-hover);
 
@@ -155,7 +155,7 @@ button {
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: 8px;
+  border-radius: 0px;
   padding: 12px 22px;
   font-weight: 700;
   letter-spacing: 0.01em;
@@ -163,7 +163,7 @@ button {
     filter 180ms ease;
   background: var(--button);
   color: #ffffff;
-  box-shadow: 0 10px 24px rgba(228, 74, 31, 0.22);
+  box-shadow: 0 10px 24px rgba(239, 90, 51, 0.22);
 }
 
 .button:hover {
@@ -195,7 +195,7 @@ button {
   border: none;
   background: var(--button);
   color: #ffffff;
-  box-shadow: 0 10px 24px rgba(228, 74, 31, 0.22);
+  box-shadow: 0 10px 24px rgba(239, 90, 51, 0.22);
 }
 
 .icon-button-dark {

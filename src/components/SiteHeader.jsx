@@ -156,7 +156,19 @@ export default function SiteHeader({ onCartClick }) {
 
         <div className="header-actions">
           <button className="icon-button header-cart" type="button" onClick={onCartClick} aria-label={`Open cart (${cartCount})`}>
-            <span aria-hidden="true">🛒</span>
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none">
+              <path
+                d="M6.5 6.5H21l-1.6 7.2a2 2 0 0 1-2 1.6H9a2 2 0 0 1-2-1.6L5.2 3.8H3"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M9.8 21a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4Zm8.2 0a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4Z"
+                fill="currentColor"
+              />
+            </svg>
             {cartCount > 0 ? <span className="cart-badge">{cartCount}</span> : null}
           </button>
           <NavLink className="button button-solid header-cta" to="/courses">
