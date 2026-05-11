@@ -26,27 +26,28 @@ export default function HomeHero() {
             <div className="hero-mosaic-scrim" aria-hidden="true" />
             {panel.copy ? (
               <div className="hero-mosaic-copy">
-                <div className="hero-like-eyebrow hero-mosaic-eyebrow">Award-winning baking studio</div>
+                <div className="hero-like-eyebrow hero-mosaic-eyebrow">✨ Award-winning baking studio</div>
                 <h1 className="hero-mosaic-title">
                   MASTER THE ART OF
                   <br />
                   EGG-FREE BAKING.
                   <br />
-                  FLOURISH.
+                  <span className="hero-mosaic-flourish">FLOURISH.</span>
                 </h1>
                 <p className="hero-mosaic-text">
                   Unlock your baking potential with curated, interactive, and technique-driven workshops. Join our mentor to
                   bake with confidence, precision, and calm.
                 </p>
                 <div className="hero-mosaic-actions">
-                  <Link className="button button-solid hero-like-cta" to="/courses">
-                    ENROLL IN A WORKSHOP
+                  <Link className="button button-solid hero-like-cta hero-cta-enhanced" to="/courses">
+                    <span className="cta-text">ENROLL IN A WORKSHOP</span>
+                    <span className="cta-arrow">→</span>
                   </Link>
                 </div>
                 <div className="hero-mosaic-points" aria-label="Highlights">
-                  <span>Live guidance</span>
-                  <span>Elegant recipes</span>
-                  <span>Hands-on techniques</span>
+                  <span className="point-item">✓ Live guidance</span>
+                  <span className="point-item">✓ Elegant recipes</span>
+                  <span className="point-item">✓ Hands-on techniques</span>
                 </div>
               </div>
             ) : null}
