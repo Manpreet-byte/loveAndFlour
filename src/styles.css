@@ -9,10 +9,10 @@
   --blush: rgba(250, 240, 228, 0.82);
   --border: rgba(99, 77, 55, 0.12);
 
-  --accent: #e58a1f;
-  --accent-hover: #c26f11;
-  --accent-soft: rgba(229, 138, 31, 0.12);
-  --ring: rgba(229, 138, 31, 0.24);
+  --accent: #e44a1f;
+  --accent-hover: #c83d19;
+  --accent-soft: rgba(228, 74, 31, 0.12);
+  --ring: rgba(228, 74, 31, 0.28);
   --button: var(--accent);
   --button-hover: var(--accent-hover);
 
@@ -154,37 +154,36 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(99, 77, 55, 0.12);
+  border: none;
   border-radius: 999px;
   padding: 12px 22px;
   font-weight: 700;
   letter-spacing: 0.01em;
   transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, border-color 180ms ease,
     filter 180ms ease;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 242, 233, 0.94));
-  color: var(--text);
-  box-shadow: 0 10px 24px rgba(64, 49, 32, 0.06);
+  background: var(--button);
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgba(228, 74, 31, 0.22);
 }
 
 .button:hover {
   transform: translateY(-1px);
+  background: var(--button-hover);
   box-shadow: var(--shadow-soft);
 }
 
 .button-solid {
-  background: linear-gradient(180deg, #f4ad41, var(--button));
-  border-color: rgba(229, 138, 31, 0.45);
-  color: #000000;
+  background: var(--button);
+  color: #ffffff;
 }
 
 .button-solid:hover {
   background: var(--button-hover);
-  border-color: var(--button-hover);
 }
 
 .button-ghost {
-  background: rgba(255, 251, 244, 0.78);
-  border-color: rgba(99, 77, 55, 0.1);
+  background: var(--button);
+  color: #ffffff;
 }
 
 .icon-button {
@@ -193,16 +192,16 @@ button {
   width: 42px;
   height: 42px;
   border-radius: 999px;
-  border: 1px solid rgba(99, 77, 55, 0.1);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 240, 231, 0.94));
-  color: var(--text);
-  box-shadow: 0 8px 18px rgba(64, 49, 32, 0.08);
+  border: none;
+  background: var(--button);
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgba(228, 74, 31, 0.22);
 }
 
 .icon-button-dark {
-  border-color: rgba(242, 154, 42, 0.28);
-  background: rgba(255, 255, 255, 0.8);
-  color: var(--text);
+  border: none;
+  background: var(--button);
+  color: #ffffff;
 }
 
 /* Header */
