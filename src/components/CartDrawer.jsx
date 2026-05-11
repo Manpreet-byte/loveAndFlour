@@ -56,6 +56,7 @@ export default function CartDrawer({ open, onClose }) {
                     <div className="cart-item-head">
                       <div className="cart-item-copy">
                         <p className="cart-item-title">{item.title}</p>
+                        {item.priceText ? <p className="cart-item-price">{item.priceText}</p> : null}
                         <p className="cart-item-meta">Added to cart</p>
                       </div>
                       <button className="cart-remove" type="button" onClick={() => removeCourse(item.id)}>

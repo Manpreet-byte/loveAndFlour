@@ -44,6 +44,7 @@ export default function CourseDetailPage() {
         ) : null}
 
         <div className="course-detail-actions">
+          {course.priceText ? <p className="course-detail-price">{course.priceText}</p> : null}
           <button
             className="button button-solid"
             type="button"
@@ -67,4 +68,3 @@ export default function CourseDetailPage() {
     </main>
   );
 }
-

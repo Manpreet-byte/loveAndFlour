@@ -1747,6 +1747,13 @@ button {
   margin: 18px 0 6px;
 }
 
+.course-detail-price {
+  margin: 0;
+  font-weight: 800;
+  font-size: 1.25rem;
+  color: var(--accent);
+}
+
 .course-detail-cart-note {
   margin: 0;
 }
@@ -1853,6 +1860,12 @@ button {
   margin: 0;
   font-weight: 700;
   line-height: 1.35;
+}
+
+.cart-item-price {
+  margin: 6px 0 0;
+  font-weight: 800;
+  color: var(--accent);
 }
 
 .cart-item-meta {

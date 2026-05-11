@@ -19,6 +19,7 @@ export default function CourseCard({ course }) {
           <h3 className="h3">{course.title}</h3>
           {course.excerptHtml ? <p className="muted" dangerouslySetInnerHTML={{ __html: course.excerptHtml }} /> : null}
         </Link>
+        {course.priceText ? <div className="course-card-price">{course.priceText}</div> : null}
         <div className="course-card-footer">
           <div className="course-card-actions">
             <Link className="button button-ghost course-card-view" to={`/courses/${course.slug}`}>

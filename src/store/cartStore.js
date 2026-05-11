@@ -8,6 +8,7 @@ const buildCartItem = (course) => ({
   featuredImage: course.featuredImage ?? '',
   excerptHtml: course.excerptHtml ?? '',
   link: course.link ?? '',
+  priceText: course.priceText ?? '',
   addedAt: Date.now(),
 });
 
