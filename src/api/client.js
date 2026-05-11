@@ -35,6 +35,50 @@ export const api = {
   },
   admin: {
     bootstrap: (payload) => request('/api/admin/bootstrap', { method: 'POST', body: payload }),
+    dashboard: (token) => request('/api/admin/dashboard', { token }),
+    createAdmin: (token, payload) => request('/api/admin/admins', { method: 'POST', token, body: payload }),
+
+    courses: {
+      list: (token) => request('/api/admin/courses', { token }),
+      create: (token, payload) => request('/api/admin/courses', { method: 'POST', token, body: payload }),
+      update: (token, id, payload) => request(`/api/admin/courses/${id}`, { method: 'PATCH', token, body: payload }),
+      remove: (token, id) => request(`/api/admin/courses/${id}`, { method: 'DELETE', token }),
+    },
+
+    categories: {
+      list: (token, type) => request(type ? `/api/admin/categories?type=${encodeURIComponent(type)}` : '/api/admin/categories', { token }),
+      create: (token, payload) => request('/api/admin/categories', { method: 'POST', token, body: payload }),
+      remove: (token, id) => request(`/api/admin/categories/${id}`, { method: 'DELETE', token }),
+    },
+
+    recipes: {
+      list: (token, categoryId) =>
+        request(categoryId ? `/api/admin/recipes?category_id=${encodeURIComponent(categoryId)}` : '/api/admin/recipes', { token }),
+      create: (token, payload) => request('/api/admin/recipes', { method: 'POST', token, body: payload }),
+    },
+
+    liveSessions: {
+      list: (token, courseId) =>
+        request(courseId ? `/api/admin/live-sessions?course_id=${encodeURIComponent(courseId)}` : '/api/admin/live-sessions', { token }),
+      create: (token, payload) => request('/api/admin/live-sessions', { method: 'POST', token, body: payload }),
+      update: (token, id, payload) => request(`/api/admin/live-sessions/${id}`, { method: 'PATCH', token, body: payload }),
+    },
+
+    recordings: {
+      list: (token, courseId) =>
+        request(courseId ? `/api/admin/recordings?course_id=${encodeURIComponent(courseId)}` : '/api/admin/recordings', { token }),
+      create: (token, payload) => request('/api/admin/recordings', { method: 'POST', token, body: payload }),
+    },
+
+    users: {
+      list: (token) => request('/api/admin/users', { token }),
+    },
+
+    enrollments: {
+      list: (token) => request('/api/admin/enrollments', { token }),
+      create: (token, payload) => request('/api/admin/enrollments', { method: 'POST', token, body: payload }),
+      remove: (token, id) => request(`/api/admin/enrollments/${id}`, { method: 'DELETE', token }),
+    },
   },
   profile: {
     me: (token) => request('/api/profile', { token }),

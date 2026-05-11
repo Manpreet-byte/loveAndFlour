@@ -1652,6 +1652,25 @@ button {
   border-top: 1px solid rgba(99, 77, 55, 0.1);
 }
 
+.course-card-pricing {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.course-card-original {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.course-card-price {
+  font-size: 1.2rem;
+  color: var(--accent);
+}
+
 .course-card-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2641,6 +2660,97 @@ button {
   display: grid;
   gap: 14px;
   margin-bottom: 12px;
+}
+
+.admin-shell {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 6px 0 10px;
+}
+
+.admin-tab {
+  border: 1px solid rgba(99, 77, 55, 0.12);
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-weight: 700;
+}
+
+.admin-tab.is-active {
+  background: var(--button);
+  border-color: transparent;
+  color: #fff;
+}
+
+.admin-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-split {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 720px) {
+  .admin-split {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.admin-table {
+  display: grid;
+  border: 1px solid rgba(99, 77, 55, 0.12);
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.admin-row {
+  display: grid;
+  grid-template-columns: 80px 1.6fr 0.8fr 140px;
+  gap: 12px;
+  padding: 12px;
+  align-items: center;
+  border-top: 1px solid rgba(99, 77, 55, 0.08);
+}
+
+.admin-row.admin-head {
+  border-top: none;
+  background: rgba(0, 0, 0, 0.03);
+  font-weight: 800;
+  color: rgba(46, 36, 27, 0.85);
+}
+
+.admin-cell-wrap {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-danger {
+  background: rgba(180, 35, 24, 0.88) !important;
+}
+
+.admin-danger:hover {
+  background: rgba(180, 35, 24, 0.96) !important;
+}
+
+@media (max-width: 720px) {
+  .admin-row {
+    grid-template-columns: 72px 1fr;
+  }
+  .admin-row > :nth-child(3),
+  .admin-row > :nth-child(4) {
+    justify-self: start;
+  }
 }
 
 .list {
