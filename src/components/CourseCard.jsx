@@ -19,16 +19,22 @@ export default function CourseCard({ course }) {
           <h3 className="h3">{course.title}</h3>
           {course.excerptHtml ? <p className="muted" dangerouslySetInnerHTML={{ __html: course.excerptHtml }} /> : null}
         </Link>
-        <div className="course-card-actions">
-          <Link className="button button-ghost course-card-view" to={`/courses/${course.slug}`}>
-            View details
-          </Link>
-          <button className="button button-solid" type="button" onClick={() => addCourse(course)}>
-            {hasCourse ? 'Added' : 'Add to cart'}
-          </button>
+        <div className="course-card-footer">
+          <div className="course-card-actions">
+            <Link className="button button-ghost course-card-view" to={`/courses/${course.slug}`}>
+              View details
+            </Link>
+            <button
+              className="button button-solid course-card-add"
+              type="button"
+              onClick={() => addCourse(course)}
+              disabled={hasCourse}
+            >
+              {hasCourse ? 'Added' : 'Add to cart'}
+            </button>
+          </div>
         </div>
       </div>
     </article>
   );
 }
-
