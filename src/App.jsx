@@ -16,6 +16,8 @@ import { useLocation } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import ProfilePage from './pages/ProfilePage';
+import AdminSetupPage from './pages/AdminSetupPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
 
 export default function App() {
   const [cartOpen, setCartOpen] = useState(false);
@@ -37,6 +39,8 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/admin/setup" element={<AdminSetupPage />} />
+        <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/newsletter" element={<NewsletterPage />} />

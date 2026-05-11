@@ -33,8 +33,10 @@ export const api = {
     signup: (payload) => request('/api/auth/signup', { method: 'POST', body: payload }),
     login: (payload) => request('/api/auth/login', { method: 'POST', body: payload }),
   },
+  admin: {
+    bootstrap: (payload) => request('/api/admin/bootstrap', { method: 'POST', body: payload }),
+  },
   profile: {
     me: (token) => request('/api/profile', { token }),
   },
 };
-

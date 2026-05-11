@@ -52,6 +52,8 @@ export const useAuthStore = create(
       },
 
       logout: () => set({ token: '', user: null, error: '', status: 'idle' }),
+
+      setSession: ({ token, user }) => set({ token: token ?? '', user: user ?? null, status: 'idle', error: '' }),
     }),
     {
       name: 'love-and-flour-auth',
@@ -59,4 +61,3 @@ export const useAuthStore = create(
     },
   ),
 );
-

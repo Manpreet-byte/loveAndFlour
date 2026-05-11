@@ -19,6 +19,7 @@ export default function SiteHeader({ onCartClick }) {
   const cartCount = useCartStore((state) => state.items.length);
   const token = useAuthStore((state) => state.token);
   const logout = useAuthStore((state) => state.logout);
+  const role = useAuthStore((state) => state.user?.role ?? '');
 
   const courseCategories = (terms?.courseCategories ?? [])
     .slice()
@@ -176,6 +177,11 @@ export default function SiteHeader({ onCartClick }) {
           </button>
           {token ? (
             <>
+              {role === 'admin' ? (
+                <NavLink className="button button-solid header-cta" to="/admin/dashboard">
+                  Admin
+                </NavLink>
+              ) : null}
               <NavLink className="button button-solid header-cta" to="/profile">
                 Profile
               </NavLink>
