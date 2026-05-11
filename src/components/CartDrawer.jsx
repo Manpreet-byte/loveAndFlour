@@ -37,6 +37,7 @@ export default function CartDrawer({ open, onClose }) {
           <div>
             <p className="section-kicker">Your cart</p>
             <h2 className="h3">Online workshops</h2>
+            <p className="cart-drawer-summary">{items.length} selected workshop{items.length === 1 ? '' : 's'}</p>
           </div>
           <button className="icon-button cart-close" type="button" onClick={onClose} aria-label="Close cart">
             ×
@@ -53,7 +54,7 @@ export default function CartDrawer({ open, onClose }) {
                   </div>
                   <div className="cart-item-body">
                     <div className="cart-item-head">
-                      <div>
+                      <div className="cart-item-copy">
                         <p className="cart-item-title">{item.title}</p>
                         <p className="cart-item-meta">Added to cart</p>
                       </div>
@@ -61,11 +62,13 @@ export default function CartDrawer({ open, onClose }) {
                         Remove
                       </button>
                     </div>
-                    {item.link ? (
-                      <a className="cart-item-link" href={item.link} target="_blank" rel="noreferrer">
-                        View original workshop
-                      </a>
-                    ) : null}
+                    <div className="cart-item-links">
+                      {item.link ? (
+                        <a className="cart-item-link" href={item.link} target="_blank" rel="noreferrer">
+                          View original workshop
+                        </a>
+                      ) : null}
+                    </div>
                   </div>
                 </li>
               ))}

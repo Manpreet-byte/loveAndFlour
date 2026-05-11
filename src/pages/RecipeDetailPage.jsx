@@ -159,81 +159,105 @@ export default function RecipeDetailPage() {
 
   return (
     <main className="section recipe-detail-page">
-      <div className="container recipe-detail-shell">
-        <article className="recipe-detail-card">
-          <header className="recipe-detail-cover recipe-detail-cover-simple">
-            <h1 className="hero-title recipe-detail-title">{post.title}</h1>
-            {recipeSections.introText ? <p className="recipe-detail-subtitle">{recipeSections.introText}</p> : null}
-            {post.featuredImage ? (
-              <div className="recipe-detail-image recipe-detail-image-simple">
-                <img src={post.featuredImage} alt={post.title} />
-              </div>
-            ) : null}
-            <div className="recipe-detail-actions">
-              <Link className="recipe-detail-backlink" to="/recipe-library">
-                ← Recipe library
-              </Link>
-            </div>
-          </header>
-
-          <div className="recipe-detail-body">
-            <div className="recipe-detail-grid-simple">
-              <section className="recipe-block recipe-detail-description">
-                <h3 className="recipe-block-title">Description</h3>
-                <div className="prose-block recipe-prose">
-                  {(recipeSections.aboutBlocks.length ? recipeSections.aboutBlocks : recipeSections.introBlocks).map((block, index) => (
-                    <div key={`${post.id}-desc-${index}`} dangerouslySetInnerHTML={{ __html: block }} />
-                  ))}
-                  {!recipeSections.aboutBlocks.length && !recipeSections.introBlocks.length && post.excerptHtml ? (
-                    <p dangerouslySetInnerHTML={{ __html: post.excerptHtml }} />
-                  ) : null}
+      <article className="recipe-detail-card recipe-detail-card-split recipe-detail-full-width">
+        <div className="recipe-detail-split">
+            <div className="recipe-detail-split-media">
+              {post.featuredImage ? (
+                <div className="recipe-detail-image recipe-detail-image-split">
+                  <img src={post.featuredImage} alt={post.title} />
                 </div>
-              </section>
-
-              <section className="recipe-block recipe-detail-ingredients">
-                <h3 className="recipe-block-title">Ingredients</h3>
-                {recipeSections.ingredients.length ? (
-                  <ul className="recipe-simple-list">
-                    {recipeSections.ingredients.map((ingredient, index) => (
-                      <li key={`${post.id}-ingredient-${index}`}>{ingredient}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="prose-block recipe-prose">
-                    <p>Ingredients are not listed in this recipe yet.</p>
-                  </div>
-                )}
-              </section>
-
-              <section className="recipe-block recipe-detail-instructions">
-                <h3 className="recipe-block-title">Step-by-step Instructions</h3>
-                {recipeSections.instructions.length ? (
-                  <ol className="recipe-simple-list recipe-simple-steps">
-                    {recipeSections.instructions.map((step, index) => (
-                      <li key={`${post.id}-step-${index}`}>{step}</li>
-                    ))}
-                  </ol>
-                ) : (
-                  <div className="prose-block recipe-prose">
-                    <p>Instructions are not listed in this recipe yet.</p>
-                  </div>
-                )}
-              </section>
-
-              {recipeSections.notesBlocks.length ? (
-                <section className="recipe-block recipe-detail-notes">
-                  <h3 className="recipe-block-title">Notes</h3>
-                  <div className="prose-block recipe-prose">
-                    {recipeSections.notesBlocks.map((block, index) => (
-                      <div key={`${post.id}-note-${index}`} dangerouslySetInnerHTML={{ __html: block }} />
-                    ))}
-                  </div>
-                </section>
               ) : null}
             </div>
-          </div>
-        </article>
-      </div>
+
+            <div className="recipe-detail-split-content">
+              <div className="recipe-detail-toolbar">
+                <Link className="recipe-detail-backlink" to="/recipe-library">
+                  ← Recipe library
+                </Link>
+                {post.link ? (
+                  <a className="recipe-detail-link" href={post.link} target="_blank" rel="noreferrer">
+                    View original site
+                  </a>
+                ) : null}
+              </div>
+
+              <h1 className="hero-title recipe-detail-title">{post.title}</h1>
+              {recipeSections.introText ? <p className="recipe-detail-subtitle">{recipeSections.introText}</p> : null}
+
+              <div className="recipe-detail-stats">
+                <div className="stat">
+                  <p className="stat-label">Ingredients</p>
+                  <p className="stat-value">{recipeSections.ingredients.length || '—'}</p>
+                </div>
+                <div className="stat">
+                  <p className="stat-label">Steps</p>
+                  <p className="stat-value">{recipeSections.instructions.length || '—'}</p>
+                </div>
+                <div className="stat">
+                  <p className="stat-label">Notes</p>
+                  <p className="stat-value">{recipeSections.notesBlocks.length || '—'}</p>
+                </div>
+              </div>
+
+              <div className="recipe-detail-body">
+                <div className="recipe-detail-grid-simple">
+                  <section className="recipe-block recipe-detail-description">
+                    <h3 className="recipe-block-title">Description</h3>
+                    <div className="prose-block recipe-prose">
+                      {(recipeSections.aboutBlocks.length ? recipeSections.aboutBlocks : recipeSections.introBlocks).map((block, index) => (
+                        <div key={`${post.id}-desc-${index}`} dangerouslySetInnerHTML={{ __html: block }} />
+                      ))}
+                      {!recipeSections.aboutBlocks.length && !recipeSections.introBlocks.length && post.excerptHtml ? (
+                        <p dangerouslySetInnerHTML={{ __html: post.excerptHtml }} />
+                      ) : null}
+                    </div>
+                  </section>
+
+                  <section className="recipe-block recipe-detail-ingredients">
+                    <h3 className="recipe-block-title">Ingredients</h3>
+                    {recipeSections.ingredients.length ? (
+                      <ul className="recipe-simple-list">
+                        {recipeSections.ingredients.map((ingredient, index) => (
+                          <li key={`${post.id}-ingredient-${index}`}>{ingredient}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="prose-block recipe-prose">
+                        <p>Ingredients are not listed in this recipe yet.</p>
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="recipe-block recipe-detail-instructions">
+                    <h3 className="recipe-block-title">Step-by-step Instructions</h3>
+                    {recipeSections.instructions.length ? (
+                      <ol className="recipe-simple-list recipe-simple-steps">
+                        {recipeSections.instructions.map((step, index) => (
+                          <li key={`${post.id}-step-${index}`}>{step}</li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <div className="prose-block recipe-prose">
+                        <p>Instructions are not listed in this recipe yet.</p>
+                      </div>
+                    )}
+                  </section>
+
+                  {recipeSections.notesBlocks.length ? (
+                    <section className="recipe-block recipe-detail-notes">
+                      <h3 className="recipe-block-title">Notes</h3>
+                      <div className="prose-block recipe-prose">
+                        {recipeSections.notesBlocks.map((block, index) => (
+                          <div key={`${post.id}-note-${index}`} dangerouslySetInnerHTML={{ __html: block }} />
+                        ))}
+                      </div>
+                    </section>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+        </div>
+      </article>
     </main>
   );
 }
