@@ -1,0 +1,21 @@
+import HomeHero from '../components/sections/home/HomeHero';
+import FeaturedCoursesSection from '../components/sections/home/FeaturedCoursesSection';
+import FaqCtaSection from '../components/sections/home/FaqCtaSection';
+import PathwaysSection from '../components/sections/home/PathwaysSection';
+import RecipeHighlightsSection from '../components/sections/home/RecipeHighlightsSection';
+import TestimonialsSection from '../components/sections/home/TestimonialsSection';
+import NewsletterSection from '../components/sections/NewsletterSection';
+
+export default function HomePage() {
+  return (
+    <main>
+      <HomeHero />
+      <PathwaysSection />
+      <FeaturedCoursesSection />
+      <RecipeHighlightsSection />
+      <TestimonialsSection />
+      <FaqCtaSection />
+      <NewsletterSection />
+    </main>
+  );
+}
