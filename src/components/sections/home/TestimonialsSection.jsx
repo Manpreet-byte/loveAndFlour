@@ -2,6 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import SectionHeading from '../../SectionHeading';
 import { homeTestimonials } from '../../../data/seededContent';
 
+function initialsFromName(name) {
+  const parts = String(name ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+  return (parts.map((part) => part[0]?.toUpperCase()).join('') || 'S').slice(0, 2);
+}
+
 export default function TestimonialsSection() {
   const items = useMemo(() => (homeTestimonials ?? []).filter(Boolean).slice(0, 8), []);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -29,6 +38,18 @@ export default function TestimonialsSection() {
 
   const total = items.length;
   const clampedIndex = total ? ((activeIndex % total) + total) % total : 0;
+  const at = (offset) => {
+    if (!total) return null;
+    return items[(clampedIndex + offset + total) % total];
+  };
+
+  const cards = total
+    ? [
+        { item: at(-1), position: 'left', visualIndex: ((clampedIndex - 1 + total) % total) + 1 },
+        { item: at(0), position: 'center', visualIndex: clampedIndex + 1 },
+        { item: at(1), position: 'right', visualIndex: ((clampedIndex + 1) % total) + 1 },
+      ]
+    : [];
 
   return (
     <section className="section home-testimonials">
@@ -46,21 +67,26 @@ export default function TestimonialsSection() {
           onFocusCapture={() => setPaused(true)}
           onBlurCapture={() => setPaused(false)}
         >
-          <div className="testimonials-viewport" aria-roledescription="carousel">
-            <div className="testimonials-track" style={{ transform: `translateX(-${clampedIndex * 100}%)` }}>
-              {items.map((t, index) => (
-                <figure
-                  key={t.id ?? index}
-                  className="testimonial testimonial-slide"
-                  aria-hidden={index !== clampedIndex}
-                >
-                  <blockquote>{t.quote}</blockquote>
-                  <figcaption>
-                    Student <span className="testimonial-count">{index + 1}</span>
-                    <span className="muted">/ {total}</span>
-                  </figcaption>
-                </figure>
-              ))}
+          <div className="testimonials-shell" aria-roledescription="carousel">
+            <div className="testimonials-window">
+              {cards.map((entry, index) => {
+                if (!entry.item) return null;
+                const displayName = `Student ${entry.visualIndex}`;
+                return (
+                  <article
+                    key={`${entry.item.id ?? index}-${entry.position}`}
+                    className={`testimonial-card testimonial-card-${entry.position}`}
+                    aria-hidden={entry.position !== 'center'}
+                  >
+                    <div className="testimonial-avatar" aria-hidden="true">
+                      {initialsFromName(displayName)}
+                    </div>
+                    <h3 className="testimonial-name">{displayName}</h3>
+                    <p className="testimonial-role">Workshop Student</p>
+                    <p className="testimonial-quote">{entry.item.quote}</p>
+                  </article>
+                );
+              })}
             </div>
           </div>
 
@@ -74,6 +100,7 @@ export default function TestimonialsSection() {
               >
                 ‹
               </button>
+
               <div className="testimonials-dots" role="tablist" aria-label="Choose testimonial">
                 {items.map((t, index) => (
                   <button
@@ -86,6 +113,7 @@ export default function TestimonialsSection() {
                   />
                 ))}
               </div>
+
               <button
                 type="button"
                 className="icon-button testimonials-nav"

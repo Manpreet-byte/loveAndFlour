@@ -1,4 +1,5 @@
 import HomeHero from '../components/sections/home/HomeHero';
+import BakeryShowcaseSection from '../components/sections/home/BakeryShowcaseSection';
 import FeaturedCoursesSection from '../components/sections/home/FeaturedCoursesSection';
 import FaqCtaSection from '../components/sections/home/FaqCtaSection';
 import PathwaysSection from '../components/sections/home/PathwaysSection';
@@ -10,6 +11,7 @@ export default function HomePage() {
   return (
     <main>
       <HomeHero />
+      <BakeryShowcaseSection />
       <PathwaysSection />
       <FeaturedCoursesSection />
       <RecipeHighlightsSection />

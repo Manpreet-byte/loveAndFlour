@@ -1,15 +1,39 @@
 import { Link, useParams } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import SectionHeading from '../components/SectionHeading';
 import { findCourseBySlug } from '../data/seededContent';
 import { api } from '../api/client';
 import { useCartStore } from '../store/cartStore';
+
+function extractGalleryFromHtml(contentHtml) {
+  if (!contentHtml || typeof DOMParser === 'undefined') {
+    return { sanitizedHtml: contentHtml ?? '', images: [] };
+  }
+
+  const parser = new DOMParser();
+  const document = parser.parseFromString(`<div id="course-html">${contentHtml}</div>`, 'text/html');
+  const root = document.getElementById('course-html');
+  if (!root) return { sanitizedHtml: contentHtml ?? '', images: [] };
+
+  const images = [];
+  const galleries = root.querySelectorAll('.gallery');
+  galleries.forEach((gallery) => {
+    gallery.querySelectorAll('img').forEach((img) => {
+      const src = img.getAttribute('src');
+      if (src) images.push(src);
+    });
+    gallery.remove();
+  });
+
+  return { sanitizedHtml: root.innerHTML, images };
+}
 
 export default function CourseDetailPage() {
   const { slug } = useParams();
   const [course, setCourse] = useState(() => findCourseBySlug(slug));
   const addCourse = useCartStore((state) => state.addCourse);
   const removeCourse = useCartStore((state) => state.removeCourse);
+  const [activeImage, setActiveImage] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -30,6 +54,24 @@ export default function CourseDetailPage() {
 
   const inCart = useCartStore((state) => state.items.some((item) => item.id === course?.id));
   const categories = course?.taxonomies?.['course-category'] ?? [];
+
+  const { sanitizedHtml, images: galleryImages } = useMemo(
+    () => extractGalleryFromHtml(course?.contentHtml ?? ''),
+    [course?.contentHtml],
+  );
+
+  const allImages = useMemo(() => {
+    const urls = [];
+    if (course?.featuredImage) urls.push(course.featuredImage);
+    galleryImages.forEach((src) => urls.push(src));
+    return Array.from(new Set(urls.filter(Boolean)));
+  }, [course?.featuredImage, galleryImages]);
+
+  const fallbackIntro = course?.excerptHtml ?? course?.summary ?? 'Workshop details, access notes, and recordings will appear here once the course is published.';
+
+  useEffect(() => {
+    setActiveImage(allImages[0] ?? null);
+  }, [allImages]);
 
   if (!course) {
     return (
@@ -70,19 +112,51 @@ export default function CourseDetailPage() {
               {course.date ? <div className="muted">Published {String(course.date).slice(0, 10)}</div> : null}
             </div>
 
-            {course.featuredImage ? (
-              <div className="course-hero">
-                <img src={course.featuredImage} alt={course.title} loading="eager" />
+            {activeImage ? (
+              <div className="course-hero" aria-label="Workshop gallery">
+                <div className="course-hero-main">
+                  <img src={activeImage} alt={course.title} loading="eager" />
+                </div>
+                {allImages.length > 1 ? (
+                  <div className="course-hero-thumbs" aria-label="Gallery thumbnails">
+                    {allImages.map((src) => {
+                      const selected = src === activeImage;
+                      return (
+                        <button
+                          key={src}
+                          type="button"
+                          className={`course-hero-thumb ${selected ? 'is-active' : ''}`}
+                          onClick={() => setActiveImage(src)}
+                          aria-label={selected ? 'Selected image' : 'View image'}
+                        >
+                          <img src={src} alt="" loading="lazy" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
             {course.excerptHtml ? (
               <div className="panel prose-block" dangerouslySetInnerHTML={{ __html: course.excerptHtml }} />
-            ) : null}
+            ) : (
+              <div className="panel prose-block course-detail-fallback">
+                <p dangerouslySetInnerHTML={{ __html: fallbackIntro }} />
+                <div className="course-detail-fallback-grid">
+                  <div>
+                    <strong>Live access</strong>
+                    <span>Zoom link and reminders, if scheduled.</span>
+                  </div>
+                  <div>
+                    <strong>Recording</strong>
+                    <span>Visible in your dashboard for one year.</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
-            {course.contentHtml ? (
-              <div className="panel prose-block" dangerouslySetInnerHTML={{ __html: course.contentHtml }} />
-            ) : null}
+            {sanitizedHtml ? <div className="panel prose-block" dangerouslySetInnerHTML={{ __html: sanitizedHtml }} /> : null}
           </div>
 
           <aside className="course-detail-aside" aria-label="Purchase">
