@@ -2357,6 +2357,17 @@ button {
   background: linear-gradient(180deg, rgba(63, 34, 24, 0.94), rgba(42, 22, 16, 0.96));
 }
 
+.home-testimonials .section-heading .h2,
+.home-testimonials .section-heading-subtitle,
+.home-testimonials .badge {
+  color: #ffffff;
+}
+
+.home-testimonials .badge {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .testimonials-carousel {
   margin-top: 18px;
 }
