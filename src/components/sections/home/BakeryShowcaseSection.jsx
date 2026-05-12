@@ -27,17 +27,13 @@ export default function BakeryShowcaseSection() {
       <div className="container">
         <div className="bakery-showcase-shell">
           <div className="bakery-showcase-head">
-            <p>Landing Page Template</p>
-            <h2>Bakery</h2>
+            <p />
+            <h2 />
           </div>
 
           <div className="bakery-showcase-bar">
             <img src="/brand/logo.png" alt="Love & Flour by Pooja" />
             <nav aria-label="Bakery showcase links">
-              <a href="#">Home</a>
-              <a href="#">Product</a>
-              <a href="#">Store</a>
-              <a href="#">Contact</a>
             </nav>
             <div className="bakery-showcase-icons" aria-hidden="true">
               <span>S</span>
