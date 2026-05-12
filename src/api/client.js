@@ -83,4 +83,8 @@ export const api = {
   profile: {
     me: (token) => request('/api/profile', { token }),
   },
+  feed: {
+    enrollments: (token) => request('/api/feed/enrollments', { token }),
+    recordings: (token) => request('/api/feed/recordings', { token }),
+  },
 };

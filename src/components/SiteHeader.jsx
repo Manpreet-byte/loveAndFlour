@@ -182,6 +182,9 @@ export default function SiteHeader({ onCartClick }) {
                   Admin
                 </NavLink>
               ) : null}
+              <NavLink className="button button-solid header-cta" to="/dashboard">
+                Dashboard
+              </NavLink>
               <NavLink className="button button-solid header-cta" to="/profile">
                 Profile
               </NavLink>

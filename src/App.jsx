@@ -19,6 +19,7 @@ import ProfilePage from './pages/ProfilePage';
 import AdminSetupPage from './pages/AdminSetupPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import { useAuthStore } from './store/authStore';
+import DashboardPage from './pages/DashboardPage';
 
 export default function App() {
   const [cartOpen, setCartOpen] = useState(false);
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/admin/setup" element={<AdminSetupPage />} />
         <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
         <Route path="/about" element={<AboutPage />} />
