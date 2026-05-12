@@ -18,14 +18,22 @@ import SignupPage from './pages/SignupPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminSetupPage from './pages/AdminSetupPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import { useAuthStore } from './store/authStore';
 
 export default function App() {
   const [cartOpen, setCartOpen] = useState(false);
   const location = useLocation();
+  const token = useAuthStore((s) => s.token);
+  const refreshProfile = useAuthStore((s) => s.refreshProfile);
 
   useEffect(() => {
     setCartOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!token) return;
+    refreshProfile();
+  }, [token, refreshProfile]);
 
   return (
     <div className="page">
