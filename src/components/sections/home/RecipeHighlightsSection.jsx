@@ -1,14 +1,38 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import RecipeCard from '../../RecipeCard';
 import SectionHeading from '../../SectionHeading';
-import { posts, terms } from '../../../data/seededContent';
+import { posts as seededPosts } from '../../../data/seededContent';
+import { api } from '../../../api/client';
+import { mergeBySlug, sortByDateDesc } from '../../../utils/publicContent';
 
 export default function RecipeHighlightsSection() {
-  const latest = posts
-    .slice()
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 6);
-  const categories = (terms.postCategoriesUsed ?? []).slice(0, 8);
+  const [latest, setLatest] = useState(seededPosts.slice(0, 6));
+
+  useEffect(() => {
+    let active = true;
+    api.public.recipes
+      .list()
+      .then((data) => {
+        if (!active) return;
+        setLatest(sortByDateDesc(mergeBySlug(data.recipes ?? [], seededPosts)).slice(0, 6));
+      })
+      .catch(() => {
+        if (active) setLatest(seededPosts.slice(0, 6));
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const categories = Array.from(
+    new Map(
+      latest
+        .flatMap((post) => post.taxonomies?.category ?? [])
+        .map((category) => [category.slug, category]),
+    ).values(),
+  ).slice(0, 8);
 
   return (
     <section className="section home-recipes">

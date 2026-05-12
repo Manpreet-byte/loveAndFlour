@@ -53,9 +53,16 @@ export default function DashboardPage() {
                     <div>
                       <strong>{r.course_title}</strong>
                       <div className="muted">{r.session_title ? r.session_title : `Session ${r.live_session_id}`}</div>
-                      <a className="link" href={r.recording_url} target="_blank" rel="noreferrer">
-                        Open recording
-                      </a>
+                      {r.is_expired ? (
+                        <div className="muted">Expired {r.expires_at ? `(expired on ${String(r.expires_at).slice(0, 10)})` : ''}</div>
+                      ) : (
+                        <>
+                          <a className="link" href={r.recording_url} target="_blank" rel="noreferrer">
+                            Open recording
+                          </a>
+                          {r.expires_at ? <div className="muted">Valid till {String(r.expires_at).slice(0, 10)}</div> : null}
+                        </>
+                      )}
                     </div>
                   </li>
                 ))}
@@ -69,4 +76,3 @@ export default function DashboardPage() {
     </main>
   );
 }
-

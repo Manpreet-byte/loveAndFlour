@@ -33,6 +33,19 @@ export const api = {
     signup: (payload) => request('/api/auth/signup', { method: 'POST', body: payload }),
     login: (payload) => request('/api/auth/login', { method: 'POST', body: payload }),
   },
+  public: {
+    courses: {
+      list: () => request('/api/public/courses'),
+      detail: (slug) => request(`/api/public/courses/${encodeURIComponent(slug)}`),
+    },
+    recipes: {
+      list: () => request('/api/public/recipes'),
+      detail: (slug) => request(`/api/public/recipes/${encodeURIComponent(slug)}`),
+    },
+    categories: {
+      list: (type) => request(type ? `/api/public/categories?type=${encodeURIComponent(type)}` : '/api/public/categories'),
+    },
+  },
   admin: {
     bootstrap: (payload) => request('/api/admin/bootstrap', { method: 'POST', body: payload }),
     dashboard: (token) => request('/api/admin/dashboard', { token }),

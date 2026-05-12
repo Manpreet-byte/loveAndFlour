@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import SectionHeading from '../components/SectionHeading';
 import { findPostBySlug } from '../data/seededContent';
+import { api } from '../api/client';
 
 function normalizeText(text) {
   return text.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -141,7 +143,24 @@ function splitRecipeContent(contentHtml) {
 
 export default function RecipeDetailPage() {
   const { slug } = useParams();
-  const post = findPostBySlug(slug);
+  const [post, setPost] = useState(() => findPostBySlug(slug));
+  useEffect(() => {
+    let active = true;
+    setPost(findPostBySlug(slug));
+    api.public.recipes
+      .detail(slug)
+      .then((data) => {
+        if (active) setPost(data.recipe ?? findPostBySlug(slug));
+      })
+      .catch(() => {
+        if (active) setPost(findPostBySlug(slug));
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [slug]);
+
   const recipeSections = useMemo(() => splitRecipeContent(post?.contentHtml ?? ''), [post?.contentHtml]);
 
   if (!post) {
@@ -161,25 +180,20 @@ export default function RecipeDetailPage() {
     <main className="section recipe-detail-page">
       <article className="recipe-detail-card recipe-detail-card-split recipe-detail-full-width">
         <div className="recipe-detail-split">
-            <div className="recipe-detail-split-media">
-              {post.featuredImage ? (
-                <div className="recipe-detail-image recipe-detail-image-split">
-                  <img src={post.featuredImage} alt={post.title} />
-                </div>
-              ) : null}
-            </div>
-
-            <div className="recipe-detail-split-content">
-              <div className="recipe-detail-toolbar">
-                <Link className="recipe-detail-backlink" to="/recipe-library">
-                  ← Recipe library
-                </Link>
-                {post.link ? (
-                  <a className="recipe-detail-link" href={post.link} target="_blank" rel="noreferrer">
-                    View original site
-                  </a>
-                ) : null}
+          <div className="recipe-detail-split-media">
+            {post.featuredImage ? (
+              <div className="recipe-detail-image recipe-detail-image-split">
+                <img src={post.featuredImage} alt={post.title} />
               </div>
+            ) : null}
+          </div>
+
+          <div className="recipe-detail-split-content">
+            <div className="recipe-detail-toolbar">
+              <Link className="recipe-detail-backlink" to="/recipe-library">
+                ← Recipe library
+              </Link>
+            </div>
 
               <h1 className="hero-title recipe-detail-title">{post.title}</h1>
               {recipeSections.introText ? <p className="recipe-detail-subtitle">{recipeSections.introText}</p> : null}

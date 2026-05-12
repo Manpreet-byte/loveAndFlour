@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 
-const heroImage = '/seed-media/d6c70c1021c648ad8305bb295a9e900db12db52c.jpg';
+const heroImage = '/hero.jpeg';
 
 export default function HomeHero() {
   return (

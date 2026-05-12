@@ -28,12 +28,49 @@ function parseInrPriceFromHtml(contentHtml) {
   return null;
 }
 
+function stripHtml(contentHtml) {
+  return String(contentHtml ?? '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function formatInr(amount) {
+  if (!Number.isFinite(amount) || amount <= 0) return '';
+  return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function parseWorkshopPrices(contentHtml) {
+  const text = stripHtml(contentHtml);
+  if (!text) return { priceInr: null, compareAtPriceInr: null };
+
+  const earlyBird = text.match(/Early Bird Fee:\s*₹\s*([\d,]+)/i)?.[1];
+  const regular = text.match(/Regular Price:\s*₹\s*([\d,]+)/i)?.[1];
+  const classFee = text.match(/Class Fee:\s*₹\s*([\d,]+)/i)?.[1];
+  const fee = text.match(/Fees?:\s*₹\s*([\d,]+)/i)?.[1] ?? text.match(/Price:\s*₹\s*([\d,]+)/i)?.[1];
+
+  const toAmount = (value) => {
+    const amount = Number(String(value ?? '').replace(/,/g, ''));
+    return Number.isFinite(amount) && amount > 0 ? amount : null;
+  };
+
+  const priceInr = toAmount(earlyBird ?? classFee ?? fee ?? regular);
+  const compareAtPriceInr =
+    earlyBird && regular && toAmount(regular) && toAmount(regular) > (priceInr ?? 0) ? toAmount(regular) : null;
+
+  return { priceInr, compareAtPriceInr };
+}
+
 export const courses = rawCourses.map((course) => {
-  const priceInr = parseInrPriceFromHtml(course.contentHtml);
+  const { priceInr, compareAtPriceInr } = parseWorkshopPrices(course.contentHtml);
   return {
     ...course,
     priceInr,
-    priceText: priceInr ? `₹${priceInr}` : '',
+    compareAtPriceInr,
+    priceText: formatInr(priceInr),
+    compareAtPriceText: formatInr(compareAtPriceInr),
   };
 });
 

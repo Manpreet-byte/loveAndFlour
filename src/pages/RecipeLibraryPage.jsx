@@ -1,20 +1,39 @@
 import RecipeCard from '../components/RecipeCard';
 import SectionHeading from '../components/SectionHeading';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { posts, terms } from '../data/seededContent';
+import { posts as seededPosts } from '../data/seededContent';
+import { api } from '../api/client';
+import { mergeBySlug, sortByDateDesc } from '../utils/publicContent';
 
 export default function RecipeLibraryPage() {
   const [searchParams] = useSearchParams();
   const category = searchParams.get('category');
+  const [posts, setPosts] = useState(seededPosts);
+
+  useEffect(() => {
+    let active = true;
+    api.public.recipes
+      .list()
+      .then((data) => {
+        if (!active) return;
+        setPosts(sortByDateDesc(mergeBySlug(data.recipes ?? [], seededPosts)));
+      })
+      .catch(() => {
+        if (active) setPosts(seededPosts);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const filtered = useMemo(() => {
     if (!category) return posts;
     return posts.filter((p) => (p.taxonomies?.category ?? []).some((t) => t.slug === category));
   }, [category]);
 
-  const categoryName =
-    category ? (terms.postCategories ?? []).find((t) => t.slug === category)?.name ?? category : null;
+  const categoryName = category ? filtered.find((p) => (p.taxonomies?.category ?? []).some((t) => t.slug === category))?.taxonomies?.category?.find((t) => t.slug === category)?.name ?? category : null;
 
   return (
     <main className="section">

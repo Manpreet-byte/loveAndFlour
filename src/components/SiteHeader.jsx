@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { terms } from '../data/seededContent';
+import { api } from '../api/client';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 
@@ -15,17 +16,57 @@ const courseCategoryOrder = [
 export default function SiteHeader({ onCartClick }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState(null);
+  const [scrolled, setScrolled] = useState(false);
+  const location = useLocation();
+  const [courseCategories, setCourseCategories] = useState(() =>
+    (terms?.courseCategories ?? [])
+      .slice()
+      .sort((a, b) => courseCategoryOrder.indexOf(a.slug) - courseCategoryOrder.indexOf(b.slug))
+      .filter((t) => courseCategoryOrder.includes(t.slug)),
+  );
+  const [recipeCategories, setRecipeCategories] = useState(() => (terms?.postCategories ?? []).filter((t) => t.slug !== 'uncategorized'));
   const navRef = useRef(null);
   const cartCount = useCartStore((state) => state.items.length);
   const token = useAuthStore((state) => state.token);
   const logout = useAuthStore((state) => state.logout);
   const role = useAuthStore((state) => state.user?.role ?? '');
 
-  const courseCategories = (terms?.courseCategories ?? [])
-    .slice()
-    .sort((a, b) => courseCategoryOrder.indexOf(a.slug) - courseCategoryOrder.indexOf(b.slug))
-    .filter((t) => courseCategoryOrder.includes(t.slug));
-  const recipeCategories = (terms?.postCategories ?? []).filter((t) => t.slug !== 'uncategorized');
+  useEffect(() => {
+    let active = true;
+    Promise.all([api.public.categories.list('course'), api.public.categories.list('recipe')])
+      .then(([courseData, recipeData]) => {
+        if (!active) return;
+        const courseMap = new Map((terms?.courseCategories ?? []).map((item) => [item.slug, item]));
+        for (const item of courseData.categories ?? []) {
+          courseMap.set(item.slug, item);
+        }
+        const recipeMap = new Map((terms?.postCategories ?? []).map((item) => [item.slug, item]));
+        for (const item of recipeData.categories ?? []) {
+          if (item.slug !== 'uncategorized') recipeMap.set(item.slug, item);
+        }
+        setCourseCategories(
+          Array.from(courseMap.values())
+            .slice()
+            .sort((a, b) => courseCategoryOrder.indexOf(a.slug) - courseCategoryOrder.indexOf(b.slug))
+            .filter((t) => courseCategoryOrder.includes(t.slug) || courseData.categories?.some((cat) => cat.slug === t.slug)),
+        );
+        setRecipeCategories(Array.from(recipeMap.values()).filter((item) => item.slug !== 'uncategorized'));
+      })
+      .catch(() => {
+        if (!active) return;
+        setCourseCategories(
+          (terms?.courseCategories ?? [])
+            .slice()
+            .sort((a, b) => courseCategoryOrder.indexOf(a.slug) - courseCategoryOrder.indexOf(b.slug))
+            .filter((t) => courseCategoryOrder.includes(t.slug)),
+        );
+        setRecipeCategories((terms?.postCategories ?? []).filter((t) => t.slug !== 'uncategorized'));
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const courseHrefBySlug = useMemo(() => {
     const map = new Map();
@@ -56,12 +97,30 @@ export default function SiteHeader({ onCartClick }) {
   }, []);
 
   useEffect(() => {
+    function onScroll() {
+      setScrolled(window.scrollY > 8);
+    }
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
     if (!mobileOpen) return;
     setOpenMenu(null);
   }, [mobileOpen]);
 
+  function handleDropdownBlur(e) {
+    const current = e.currentTarget;
+    window.setTimeout(() => {
+      if (!current.contains(document.activeElement)) setOpenMenu(null);
+    }, 0);
+  }
+
+  const overlayHeader = location.pathname === '/' && !scrolled && !mobileOpen;
+
   return (
-    <header className="site-header">
+    <header className={`site-header${scrolled ? ' is-scrolled' : ''}${overlayHeader ? ' is-overlay' : ''}`}>
       <div className="container header-inner" ref={navRef}>
         <button
           className="icon-button header-burger"
@@ -88,6 +147,8 @@ export default function SiteHeader({ onCartClick }) {
             className={`nav-dropdown${openMenu === 'courses' ? ' is-open' : ''}`}
             onMouseEnter={() => setOpenMenu('courses')}
             onMouseLeave={() => setOpenMenu(null)}
+            onFocusCapture={() => setOpenMenu('courses')}
+            onBlurCapture={handleDropdownBlur}
           >
             <button
               className="nav-link nav-link-button"
@@ -128,6 +189,8 @@ export default function SiteHeader({ onCartClick }) {
             className={`nav-dropdown${openMenu === 'recipes' ? ' is-open' : ''}`}
             onMouseEnter={() => setOpenMenu('recipes')}
             onMouseLeave={() => setOpenMenu(null)}
+            onFocusCapture={() => setOpenMenu('recipes')}
+            onBlurCapture={handleDropdownBlur}
           >
             <button
               className="nav-link nav-link-button"
@@ -156,6 +219,16 @@ export default function SiteHeader({ onCartClick }) {
               </div>
             ) : null}
           </div>
+
+          <NavLink className={({ isActive }) => `nav-link${isActive ? ' is-active' : ''}`} to="/newsletter">
+            Newsletter
+          </NavLink>
+          <NavLink className={({ isActive }) => `nav-link${isActive ? ' is-active' : ''}`} to="/about">
+            About
+          </NavLink>
+          <NavLink className={({ isActive }) => `nav-link${isActive ? ' is-active' : ''}`} to="/contact">
+            Contact
+          </NavLink>
         </nav>
 
         <div className="header-actions">
@@ -201,7 +274,7 @@ export default function SiteHeader({ onCartClick }) {
       </div>
 
       {mobileOpen && (
-        <nav className="mobile-nav" aria-label="Mobile navigation">
+        <nav className="mobile-nav is-open" aria-label="Mobile navigation">
           <div className="container mobile-nav-inner">
             <NavLink className="mobile-nav-link" to="/" onClick={() => setMobileOpen(false)} end>
               Home
