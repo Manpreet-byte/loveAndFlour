@@ -33,13 +33,6 @@ export default function BakeryShowcaseSection() {
 
           <div className="bakery-showcase-bar">
             <img src="/brand/logo.png" alt="Love & Flour by Pooja" />
-            <nav aria-label="Bakery showcase links">
-            </nav>
-            <div className="bakery-showcase-icons" aria-hidden="true">
-              <span>S</span>
-              <span>C</span>
-              <span>P</span>
-            </div>
           </div>
 
           <div className="bakery-showcase-hero">
