@@ -121,7 +121,7 @@ export default function SiteHeader({ onCartClick }) {
 
   return (
     <header className={`site-header${scrolled ? ' is-scrolled' : ''}${overlayHeader ? ' is-overlay' : ''}`}>
-      <div className="container header-inner" ref={navRef}>
+      <div className="container-wide header-inner" ref={navRef}>
         <button
           className="icon-button header-burger"
           type="button"
@@ -251,23 +251,38 @@ export default function SiteHeader({ onCartClick }) {
           {token ? (
             <>
               {role === 'admin' ? (
-                <NavLink className="button button-solid header-cta" to="/admin/dashboard">
+                <NavLink className={({ isActive }) => `nav-link nav-link-action${isActive ? ' is-active' : ''}`} to="/admin/dashboard">
                   Admin
                 </NavLink>
               ) : null}
-              <NavLink className="button button-solid header-cta" to="/dashboard">
+              <NavLink className={({ isActive }) => `nav-link nav-link-action${isActive ? ' is-active' : ''}`} to="/dashboard">
                 Dashboard
               </NavLink>
-              <NavLink className="button button-solid header-cta" to="/profile">
+              <NavLink className={({ isActive }) => `nav-link nav-link-action${isActive ? ' is-active' : ''}`} to="/profile">
                 Profile
               </NavLink>
-              <button className="button button-solid header-cta" type="button" onClick={logout}>
+              <button className="nav-link nav-link-action" type="button" onClick={logout}>
                 Logout
               </button>
             </>
           ) : (
-            <NavLink className="button button-solid header-cta" to="/login">
-              Login
+            <NavLink className="nav-link nav-link-action nav-link-icon" to="/login" aria-label="Login">
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none">
+                <path
+                  d="M12 12a4.2 4.2 0 1 0-4.2-4.2A4.2 4.2 0 0 0 12 12Z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M4.5 20.2a7.5 7.5 0 0 1 15 0"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </NavLink>
           )}
         </div>
