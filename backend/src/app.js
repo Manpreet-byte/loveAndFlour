@@ -89,6 +89,25 @@ app.use('/api/user', userRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/feed', userFeedRoutes);
 app.use('/api/cart', cartRoutes);
+
+// If a user navigates to protected API endpoints directly in a browser tab,
+// redirect them to the frontend app instead of showing a confusing JSON auth error.
+// (Does not affect XHR/fetch calls which send `Accept: application/json`.)
+app.get('/api/orders', (req, res, next) => {
+  const accept = String(req.headers.accept ?? '');
+  if (!accept.includes('text/html')) return next();
+  const base = String(env.PUBLIC_WEB_BASE_URL ?? '').trim().replace(/\/$/, '');
+  if (!base) return next();
+  return res.redirect(`${base}/orders`);
+});
+
+app.get('/api/payments/checkout', (req, res, next) => {
+  const accept = String(req.headers.accept ?? '');
+  if (!accept.includes('text/html')) return next();
+  const base = String(env.PUBLIC_WEB_BASE_URL ?? '').trim().replace(/\/$/, '');
+  if (!base) return next();
+  return res.redirect(`${base}/checkout`);
+});
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/coupons', couponRoutes);

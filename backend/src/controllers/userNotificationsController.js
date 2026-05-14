@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { getUnreadCount, listUserNotifications, markAllRead, markNotificationRead } from '../models/userNotificationModel.js';
+import { isSchemaMismatchError } from '../utils/dbErrors.js';
 
 const listSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional(),
@@ -16,6 +17,9 @@ export async function listNotifications(req, res, next) {
     ]);
     return res.json({ ...list, unread_count: unread });
   } catch (err) {
+    if (isSchemaMismatchError(err)) {
+      return res.json({ notifications: [], next_cursor: null, unread_count: 0 });
+    }
     return next(err);
   }
 }
@@ -30,6 +34,9 @@ export async function readNotification(req, res, next) {
     const unread = await getUnreadCount({ userId });
     return res.json({ ok: true, unread_count: unread });
   } catch (err) {
+    if (isSchemaMismatchError(err)) {
+      return res.json({ ok: true, unread_count: 0 });
+    }
     return next(err);
   }
 }
@@ -40,7 +47,9 @@ export async function readAll(req, res, next) {
     await markAllRead({ userId });
     return res.json({ ok: true, unread_count: 0 });
   } catch (err) {
+    if (isSchemaMismatchError(err)) {
+      return res.json({ ok: true, unread_count: 0 });
+    }
     return next(err);
   }
 }
-

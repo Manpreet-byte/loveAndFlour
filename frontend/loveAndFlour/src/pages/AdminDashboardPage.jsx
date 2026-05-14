@@ -6,6 +6,19 @@ import ChartCard from '../components/admin/ChartCard';
 import SparklineBarChart from '../components/admin/SparklineBarChart';
 import SparklineLineChart from '../components/admin/SparklineLineChart';
 
+function parseJsonMaybe(value) {
+  if (value == null) return null;
+  if (typeof value === 'object') return value;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+}
+
 const tabs = [
   { id: 'overview', label: 'Overview' },
   { id: 'orders', label: 'Orders' },
@@ -256,6 +269,7 @@ export default function AdminDashboardPage() {
 
   const [cmsStatus, setCmsStatus] = useState('idle'); // idle | loading | error
   const [cmsError, setCmsError] = useState('');
+  const [cmsMeta, setCmsMeta] = useState({ homepage_updated_at: null, about_updated_at: null });
   const [homepageForm, setHomepageForm] = useState({
     title: 'Home',
     hero_badge: '',
@@ -519,7 +533,8 @@ export default function AdminDashboardPage() {
           api.admin.cms.newsletter.subscribers(token),
         ]);
 
-        const hero = hp?.homepage?.content?.hero ?? {};
+        const homepageContent = parseJsonMaybe(hp?.homepage?.content) ?? (hp?.homepage?.content ?? null);
+        const hero = homepageContent?.hero ?? {};
         setHomepageForm((s) => ({
           ...s,
           title: hp?.homepage?.title ?? s.title,
@@ -535,13 +550,19 @@ export default function AdminDashboardPage() {
         }));
 
         const aboutRow = about?.about ?? null;
+        const aboutContent = parseJsonMaybe(aboutRow?.content) ?? (aboutRow?.content ?? null);
         setAboutCmsForm((s) => ({
           ...s,
           title: aboutRow?.title ?? s.title,
-          featured_image_url: aboutRow?.content?.featured_image_url ?? '',
+          featured_image_url: aboutContent?.featured_image_url ?? '',
           content_html: aboutRow?.content_html ?? '',
           is_published: aboutRow?.is_published ?? true,
         }));
+
+        setCmsMeta({
+          homepage_updated_at: hp?.homepage?.updated_at ?? null,
+          about_updated_at: aboutRow?.updated_at ?? null,
+        });
 
         setCmsTestimonials(t?.testimonials ?? []);
         setCmsFaqs(f?.faqs ?? []);
@@ -2064,14 +2085,32 @@ export default function AdminDashboardPage() {
                 </button>
               </div>
 
-              <div className="admin-two-col" style={{ marginTop: 16 }}>
-                <div className="panel" style={{ margin: 0 }}>
-                  <h4 className="h4">Homepage hero</h4>
-                  <div className="admin-split">
-                    <label className="field">
-                      <span className="field-label">Badge</span>
-                      <input className="input" value={homepageForm.hero_badge} onChange={(e) => setHomepageForm((s) => ({ ...s, hero_badge: e.target.value }))} />
-                    </label>
+	              <div className="admin-two-col" style={{ marginTop: 16 }}>
+	                <div className="panel" style={{ margin: 0 }}>
+	                  <h4 className="h4">Homepage hero</h4>
+	                  <p className="muted" style={{ marginTop: 6 }}>
+	                    {cmsMeta?.homepage_updated_at
+	                      ? `Last updated: ${new Date(cmsMeta.homepage_updated_at).toLocaleString()}`
+	                      : 'Tip: Update the hero and refresh to confirm changes.'}
+	                  </p>
+	                  <div className="panel" style={{ marginTop: 12, background: 'rgba(201, 122, 74, 0.06)' }}>
+	                    <p className="section-kicker" style={{ marginTop: 0 }}>{homepageForm.hero_badge || 'Badge'}</p>
+	                    <div className="h3" style={{ margin: 0, whiteSpace: 'pre-line' }}>{homepageForm.hero_title || 'Hero title'}</div>
+	                    {homepageForm.hero_subtitle ? (
+	                      <p className="muted" style={{ marginTop: 8, whiteSpace: 'pre-line' }}>{homepageForm.hero_subtitle}</p>
+	                    ) : null}
+	                    <div className="button-row" style={{ marginTop: 12 }}>
+	                      <span className="button button-solid" aria-disabled="true">{homepageForm.hero_primary_cta_label || 'Primary CTA'}</span>
+	                      {homepageForm.hero_secondary_cta_label ? (
+	                        <span className="button button-ghost" aria-disabled="true">{homepageForm.hero_secondary_cta_label}</span>
+	                      ) : null}
+	                    </div>
+	                  </div>
+	                  <div className="admin-split">
+	                    <label className="field">
+	                      <span className="field-label">Badge</span>
+	                      <input className="input" value={homepageForm.hero_badge} onChange={(e) => setHomepageForm((s) => ({ ...s, hero_badge: e.target.value }))} />
+	                    </label>
                     <label className="field">
                       <span className="field-label">Image URL</span>
                       <input className="input" value={homepageForm.hero_image_url} onChange={(e) => setHomepageForm((s) => ({ ...s, hero_image_url: e.target.value }))} placeholder="/hero.jpeg or https://…" />
@@ -2114,12 +2153,15 @@ export default function AdminDashboardPage() {
                   </button>
                 </div>
 
-                <div className="panel" style={{ margin: 0 }}>
-                  <h4 className="h4">About page</h4>
-                  <label className="field">
-                    <span className="field-label">Title</span>
-                    <input className="input" value={aboutCmsForm.title} onChange={(e) => setAboutCmsForm((s) => ({ ...s, title: e.target.value }))} />
-                  </label>
+	                <div className="panel" style={{ margin: 0 }}>
+	                  <h4 className="h4">About page</h4>
+	                  <p className="muted" style={{ marginTop: 6 }}>
+	                    {cmsMeta?.about_updated_at ? `Last updated: ${new Date(cmsMeta.about_updated_at).toLocaleString()}` : null}
+	                  </p>
+	                  <label className="field">
+	                    <span className="field-label">Title</span>
+	                    <input className="input" value={aboutCmsForm.title} onChange={(e) => setAboutCmsForm((s) => ({ ...s, title: e.target.value }))} />
+	                  </label>
                   <label className="field">
                     <span className="field-label">Featured image URL</span>
                     <input className="input" value={aboutCmsForm.featured_image_url} onChange={(e) => setAboutCmsForm((s) => ({ ...s, featured_image_url: e.target.value }))} />

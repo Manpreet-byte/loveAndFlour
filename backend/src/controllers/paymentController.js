@@ -3,6 +3,7 @@ import { pool } from '../config/db.js';
 import { env } from '../utils/env.js';
 import { hmacSha256Hex, safeEqual } from '../utils/crypto.js';
 import { createCheckoutOrder } from './orderController.js';
+import { isSchemaMismatchError } from '../utils/dbErrors.js';
 
 const verifySchema = z.object({
   orderId: z.coerce.number().int().positive(),
@@ -55,18 +56,29 @@ export async function verify(req, res, next) {
     if (!ok) return res.status(401).json({ error: { message: 'Invalid signature' } });
 
     // Store provider payment reference and signature; do NOT mark paid here.
-    await pool.query(
-      `UPDATE payments
-          SET provider_payment_id = COALESCE(?, provider_payment_id),
-              provider_signature = COALESCE(?, provider_signature),
-              updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?`,
-      [payload.razorpay_payment_id, payload.razorpay_signature, payment.id],
-    );
+    try {
+      await pool.query(
+        `UPDATE payments
+            SET provider_payment_id = COALESCE(?, provider_payment_id),
+                provider_signature = COALESCE(?, provider_signature),
+                updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?`,
+        [payload.razorpay_payment_id, payload.razorpay_signature, payment.id],
+      );
+    } catch (err) {
+      if (!isSchemaMismatchError(err)) throw err;
+      await pool.query(
+        `UPDATE payments
+            SET provider_payment_id = COALESCE(?, provider_payment_id),
+                metadata_json = JSON_SET(COALESCE(metadata_json, JSON_OBJECT()),
+                                        '$.razorpay_signature', COALESCE(?, JSON_EXTRACT(COALESCE(metadata_json, JSON_OBJECT()), '$.razorpay_signature')))
+          WHERE id = ?`,
+        [payload.razorpay_payment_id, payload.razorpay_signature, payment.id],
+      );
+    }
 
     return res.json({ ok: true, orderId: payload.orderId, status: order.status });
   } catch (err) {
     return next(err);
   }
 }
-

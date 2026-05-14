@@ -1,7 +1,24 @@
 function getBaseUrl() {
   // Prefer Vite env override; fallback to localhost backend for local dev/testing.
   const configured = import.meta.env.VITE_API_BASE_URL;
-  if (typeof configured === 'string' && configured.trim()) return configured.trim().replace(/\/$/, '');
+  if (typeof configured === 'string' && configured.trim()) {
+    let base = configured.trim().replace(/\/$/, '');
+    // Avoid cookie/state issues caused by mixing `localhost` and `127.0.0.1` across auth/payment flows.
+    // Treat them as equivalent and prefer the current page hostname when possible.
+    try {
+      if (typeof window !== 'undefined') {
+        const currentHost = window.location.hostname;
+        const u = new URL(base);
+        if ((u.hostname === '127.0.0.1' || u.hostname === 'localhost') && (currentHost === '127.0.0.1' || currentHost === 'localhost')) {
+          u.hostname = currentHost;
+          base = u.toString().replace(/\/$/, '');
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return base;
+  }
 
   // In local development we rely on the Vite proxy (`/api -> http://127.0.0.1:8080`)
   // to avoid CORS and keep requests same-origin.
@@ -558,6 +575,48 @@ export const api = {
         request(`/api/admin/lessons/${encodeURIComponent(lessonId)}`, { method: 'PATCH', token, body: payload }),
       remove: (token, lessonId) => request(`/api/admin/lessons/${encodeURIComponent(lessonId)}`, { method: 'DELETE', token }),
       reorder: (token, payload) => request('/api/admin/lessons/reorder', { method: 'PUT', token, body: payload }),
+    },
+
+    // CMS / Content & Media (admin-only).
+    cms: {
+      getHomepage: (token) => request('/api/admin/content/homepage', { token }),
+      patchHomepage: (token, payload) => request('/api/admin/content/homepage', { method: 'PATCH', token, body: payload }),
+      getAbout: (token) => request('/api/admin/content/about', { token }),
+      patchAbout: (token, payload) => request('/api/admin/content/about', { method: 'PATCH', token, body: payload }),
+      testimonials: {
+        list: (token) => request('/api/admin/testimonials', { token }),
+        create: (token, payload) => request('/api/admin/testimonials', { method: 'POST', token, body: payload }),
+        update: (token, id, payload) => request(`/api/admin/testimonials/${encodeURIComponent(id)}`, { method: 'PATCH', token, body: payload }),
+        remove: (token, id) => request(`/api/admin/testimonials/${encodeURIComponent(id)}`, { method: 'DELETE', token }),
+      },
+      faqs: {
+        list: (token) => request('/api/admin/faqs', { token }),
+        create: (token, payload) => request('/api/admin/faqs', { method: 'POST', token, body: payload }),
+        update: (token, id, payload) => request(`/api/admin/faqs/${encodeURIComponent(id)}`, { method: 'PATCH', token, body: payload }),
+        remove: (token, id) => request(`/api/admin/faqs/${encodeURIComponent(id)}`, { method: 'DELETE', token }),
+      },
+      announcements: {
+        list: (token) => request('/api/admin/announcements', { token }),
+        create: (token, payload) => request('/api/admin/announcements', { method: 'PATCH', token, body: payload }),
+      },
+      legal: {
+        patch: (token, slug, payload) => request(`/api/admin/legal/${encodeURIComponent(slug)}`, { method: 'PATCH', token, body: payload }),
+      },
+      seo: {
+        patch: (token, page, payload) => request(`/api/admin/seo/${encodeURIComponent(page)}`, { method: 'PATCH', token, body: payload }),
+      },
+      gallery: {
+        list: (token) => request('/api/admin/gallery', { token }),
+        create: (token, payload) => request('/api/admin/gallery', { method: 'POST', token, body: payload }),
+        remove: (token, id) => request(`/api/admin/gallery/${encodeURIComponent(id)}`, { method: 'DELETE', token }),
+      },
+      newsletter: {
+        subscribers: (token) => request('/api/admin/newsletter/subscribers', { token }),
+      },
+      media: {
+        uploadUrl: () => `${getBaseUrl()}/api/admin/media/upload`,
+        listForUser: (token, userId) => request(`/api/admin/media/user/${encodeURIComponent(userId)}`, { token }),
+      },
     },
   },
   profile: {

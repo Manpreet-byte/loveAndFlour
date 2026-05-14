@@ -142,6 +142,7 @@ export default function CheckoutPage() {
   const couponDebounceRef = useRef(null);
   const lastCouponValidatedRef = useRef('');
   const couponRequestSeq = useRef(0);
+  const courseSlugToIdRef = useRef(null); // Map<string, number> (lazy-filled)
 
   const [billingName, setBillingName] = useState('');
   const [billingEmail, setBillingEmail] = useState('');
@@ -189,6 +190,28 @@ export default function CheckoutPage() {
     return payload;
   }, [items, couponApplied, couponCode, billingName, billingEmail, billingPhone, billingGst]);
 
+  const resolveCourseIdsForCheckout = async (cartItems) => {
+    const list = Array.isArray(cartItems) ? cartItems : [];
+    if (!list.length) return [];
+
+    if (!courseSlugToIdRef.current) {
+      const data = await api.public.courses.list().catch(() => null);
+      const map = new Map();
+      for (const c of data?.courses ?? []) {
+        if (c?.slug && c?.id) map.set(String(c.slug), Number(c.id));
+      }
+      courseSlugToIdRef.current = map;
+    }
+
+    const map = courseSlugToIdRef.current ?? new Map();
+    return list.map((it) => {
+      const slug = String(it?.slug ?? '');
+      const mappedId = slug ? map.get(slug) : null;
+      // Prefer backend DB id when we can map by slug; fallback to whatever is already in cart.
+      return { course_id: mappedId ? Number(mappedId) : Number(it.id), quantity: 1 };
+    });
+  };
+
   const validateCoupon = async ({ code, applyIfValid }) => {
     const normalized = String(code ?? '').trim();
     setCouponMessage('');
@@ -204,7 +227,8 @@ export default function CheckoutPage() {
 
     const reqId = (couponRequestSeq.current += 1);
     try {
-      const res = await api.coupons.validate(token, { coupon_code: normalized, items: items.map((it) => ({ course_id: it.id, quantity: 1 })) });
+      const resolvedItems = await resolveCourseIdsForCheckout(items);
+      const res = await api.coupons.validate(token, { coupon_code: normalized, items: resolvedItems });
       if (reqId !== couponRequestSeq.current) return;
       lastCouponValidatedRef.current = normalized;
 
@@ -269,7 +293,8 @@ export default function CheckoutPage() {
     setCreated(null);
     setStatus('creating');
     try {
-      const data = await api.orders.create(token, checkoutPayload);
+      const resolvedItems = await resolveCourseIdsForCheckout(items);
+      const data = await api.orders.create(token, { ...checkoutPayload, items: resolvedItems });
       setCreated(data);
       const createdOrderId = data?.orderId ?? data?.order?.id;
       if (createdOrderId) {

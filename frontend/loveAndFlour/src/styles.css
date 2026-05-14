@@ -155,6 +155,18 @@ button {
   cursor: pointer;
 }
 
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
+iframe {
+  max-width: 100%;
+}
+
 .button:focus-visible,
 .icon-button:focus-visible,
 .admin-tab:focus-visible,
@@ -4537,6 +4549,51 @@ button {
   color: var(--text-secondary);
   display: grid;
   gap: 8px;
+}
+
+/* Generic tables (Orders, invoices, etc.) */
+.table-shell {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 640px;
+}
+
+.table th,
+.table td {
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(99, 77, 55, 0.12);
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.table thead th {
+  font-weight: 800;
+  color: rgba(46, 36, 27, 0.85);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+@media (max-width: 720px) {
+  .table {
+    min-width: 560px;
+  }
+
+  .table th,
+  .table td {
+    padding: 10px 10px;
+  }
+}
+
+@media (max-width: 420px) {
+  .table {
+    min-width: 520px;
+  }
 }
 
 .steps {
