@@ -33,10 +33,12 @@ export async function storeUploadedStream({ user, fileStream, originalFileName, 
   const { headerBytes, bufferedBytes } = await new Promise((resolve, reject) => {
     const chunks = [];
     let total = 0;
+    let ended = false;
 
     function cleanup() {
       fileStream.off('data', onData);
       fileStream.off('error', onErr);
+      fileStream.off('end', onEnd);
     }
 
     function onData(chunk) {
@@ -55,8 +57,23 @@ export async function storeUploadedStream({ user, fileStream, originalFileName, 
       reject(err);
     }
 
+    function onEnd() {
+      ended = true;
+      cleanup();
+      if (total <= 0) {
+        const err = new Error('Empty upload');
+        err.status = 400;
+        reject(err);
+        return;
+      }
+      fileStream.pause();
+      const buf = Buffer.concat(chunks);
+      resolve({ headerBytes: buf.subarray(0, 16), bufferedBytes: buf });
+    }
+
     fileStream.on('data', onData);
     fileStream.on('error', onErr);
+    fileStream.on('end', onEnd);
   });
 
   const sniffed = detectFileTypeFromHeader(headerBytes);
@@ -67,10 +84,19 @@ export async function storeUploadedStream({ user, fileStream, originalFileName, 
   let ext = sniffed.ext;
 
   const declared = String(declaredMimeType || '').toLowerCase();
+  const safeFileName = String(originalFileName || '').toLowerCase();
+  const hasWebmExt = safeFileName.endsWith('.webm');
+  const hasMp4Ext = safeFileName.endsWith('.mp4') || safeFileName.endsWith('.m4v');
+  const hasMovExt = safeFileName.endsWith('.mov');
+  const hasMkvExt = safeFileName.endsWith('.mkv');
   const isVideoMime =
     declared.startsWith('video/') ||
     declared === 'application/octet-stream' ||
-    declared === 'application/x-matroska';
+    declared === 'application/x-matroska' ||
+    hasWebmExt ||
+    hasMp4Ext ||
+    hasMovExt ||
+    hasMkvExt;
 
   if (fileType === 'other') {
     if (!isVideoMime) {
@@ -79,8 +105,22 @@ export async function storeUploadedStream({ user, fileStream, originalFileName, 
       throw err;
     }
     fileType = 'video';
-    mimeType = declared.startsWith('video/') ? declared : 'video/mp4';
-    ext = 'mp4';
+    if (declared.startsWith('video/')) {
+      mimeType = declared;
+      ext = declared.includes('webm') ? 'webm' : 'mp4';
+    } else if (hasWebmExt) {
+      mimeType = 'video/webm';
+      ext = 'webm';
+    } else if (hasMovExt) {
+      mimeType = 'video/quicktime';
+      ext = 'mov';
+    } else if (hasMkvExt) {
+      mimeType = 'video/x-matroska';
+      ext = 'mkv';
+    } else {
+      mimeType = 'video/mp4';
+      ext = 'mp4';
+    }
   }
 
   if (!canUpload({ role: user.role, fileType })) {

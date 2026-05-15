@@ -55,6 +55,7 @@ export default function AdminDashboardPage() {
   const refreshProfile = useAuthStore((s) => s.refreshProfile);
   const [status, setStatus] = useState('idle');
   const [message, setMessage] = useState('');
+  const [mediaUploading, setMediaUploading] = useState(false);
   const [tab, setTab] = useState('overview');
   const [monthFilter, setMonthFilter] = useState(() => {
     const now = new Date();
@@ -158,6 +159,7 @@ export default function AdminDashboardPage() {
   const [users, setUsers] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [admins, setAdmins] = useState([]);
+  const [discountRules, setDiscountRules] = useState([]);
   const [courseCategories, setCourseCategories] = useState([]);
   const [recipeCategories, setRecipeCategories] = useState([]);
   const [editingCourseId, setEditingCourseId] = useState(null);
@@ -165,6 +167,7 @@ export default function AdminDashboardPage() {
   const [editingSessionId, setEditingSessionId] = useState(null);
   const [editingRecordingId, setEditingRecordingId] = useState(null);
   const [editingCouponId, setEditingCouponId] = useState(null);
+  const [editingDiscountRuleId, setEditingDiscountRuleId] = useState(null);
 
   // Support/helpdesk
   const [supportTickets, setSupportTickets] = useState([]);
@@ -355,11 +358,25 @@ export default function AdminDashboardPage() {
     maintenance_mode: false,
   });
 
-  const integrationNote =
-    'UI is ready. Backend integration for this module will be added next (no data is saved yet).';
-
   const disabled = useMemo(() => status === 'loading', [status]);
   const isAdmin = user?.role === 'admin';
+
+  const uploadMediaAndGetUrl = async (file, { isPublic = true } = {}) => {
+    if (!token || !isAdmin) throw new Error('Unauthorized');
+    if (!file) throw new Error('No file selected');
+    if (!api?.admin?.media?.upload || !api?.admin?.media?.publicFileUrl) throw new Error('Media upload is not available.');
+
+    setMediaUploading(true);
+    setMessage('');
+    try {
+      const res = await api.admin.media.upload(token, file, { isPublic });
+      const id = res?.id;
+      if (!id) throw new Error('Upload failed (missing media id).');
+      return api.admin.media.publicFileUrl(id);
+    } finally {
+      setMediaUploading(false);
+    }
+  };
 
   const rangeToFromTo = useMemo(() => {
     const now = new Date();
@@ -520,6 +537,21 @@ export default function AdminDashboardPage() {
       } else if (nextTab === 'admins') {
         const data = await api.admin.users.list(token);
         setAdmins((data.users ?? []).filter((u) => u.role === 'admin'));
+      } else if (nextTab === 'discount_rules') {
+        const data = await api.admin.discountRules.list(token);
+        setDiscountRules(data?.rules ?? []);
+      } else if (nextTab === 'settings') {
+        const data = await api.admin.settings.get(token);
+        const s = data?.settings ?? {};
+        setSettingsForm((prev) => ({
+          ...prev,
+          site_name: s.site_name ?? prev.site_name,
+          logo_url: s.logo_url ?? prev.logo_url,
+          favicon_url: s.favicon_url ?? prev.favicon_url,
+          gst_number: s.gst_number ?? prev.gst_number,
+          currency: s.currency ?? prev.currency,
+          maintenance_mode: s.maintenance_mode ?? prev.maintenance_mode,
+        }));
       } else if (nextTab === 'content') {
         setCmsStatus('loading');
         setCmsError('');
@@ -738,6 +770,113 @@ export default function AdminDashboardPage() {
       setMessage('Legal page saved.');
     } catch (err) {
       setMessage(err?.message ?? 'Failed to save legal page');
+    } finally {
+      setStatus('idle');
+    }
+  };
+
+  const saveSettings = async (e) => {
+    e.preventDefault();
+    if (!token) return;
+    setStatus('loading');
+    setMessage('');
+    try {
+      await api.admin.settings.patch(token, settingsForm);
+      setMessage('Settings saved.');
+      await loadTabData('settings');
+    } catch (err) {
+      setMessage(err?.message ?? 'Failed to save settings');
+    } finally {
+      setStatus('idle');
+    }
+  };
+
+  const submitBroadcast = async (e) => {
+    e.preventDefault();
+    if (!token) return;
+    setStatus('loading');
+    setMessage('');
+    try {
+      const res = await api.admin.notifications.broadcast(token, { ...broadcastForm, audience: 'newsletter' });
+      setMessage(`Broadcast queued for ${Number(res?.queued ?? 0)} subscribers.`);
+      setBroadcastForm({ subject: '', body_text: '' });
+    } catch (err) {
+      setMessage(err?.message ?? 'Failed to queue broadcast');
+    } finally {
+      setStatus('idle');
+    }
+  };
+
+  const createDiscountRule = async (e) => {
+    e.preventDefault();
+    if (!token) return;
+    setStatus('loading');
+    setMessage('');
+    try {
+      const payload = {
+        min_courses: Number(discountRuleForm.min_courses),
+        max_courses: discountRuleForm.max_courses === '' ? null : Number(discountRuleForm.max_courses),
+        discount_percent: Number(discountRuleForm.discount_percent),
+        is_active: true,
+      };
+      await api.admin.discountRules.create(token, payload);
+      setMessage('Discount rule created.');
+      setDiscountRuleForm({ min_courses: '3', max_courses: '5', discount_percent: '15' });
+      await loadTabData('discount_rules');
+    } catch (err) {
+      setMessage(err?.message ?? 'Failed to create discount rule');
+    } finally {
+      setStatus('idle');
+    }
+  };
+
+  const beginDiscountRuleEdit = (r) => {
+    setEditingDiscountRuleId(r.id);
+    setDiscountRuleForm({
+      min_courses: String(r.min_courses ?? ''),
+      max_courses: r.max_courses == null ? '' : String(r.max_courses),
+      discount_percent: String(r.discount_percent ?? ''),
+    });
+  };
+
+  const cancelDiscountRuleEdit = () => {
+    setEditingDiscountRuleId(null);
+    setDiscountRuleForm({ min_courses: '3', max_courses: '5', discount_percent: '15' });
+  };
+
+  const saveDiscountRuleEdit = async (e) => {
+    e.preventDefault();
+    if (!token || !editingDiscountRuleId) return;
+    setStatus('loading');
+    setMessage('');
+    try {
+      const payload = {
+        min_courses: Number(discountRuleForm.min_courses),
+        max_courses: discountRuleForm.max_courses === '' ? null : Number(discountRuleForm.max_courses),
+        discount_percent: Number(discountRuleForm.discount_percent),
+      };
+      await api.admin.discountRules.patch(token, editingDiscountRuleId, payload);
+      setMessage('Discount rule updated.');
+      setEditingDiscountRuleId(null);
+      setDiscountRuleForm({ min_courses: '3', max_courses: '5', discount_percent: '15' });
+      await loadTabData('discount_rules');
+    } catch (err) {
+      setMessage(err?.message ?? 'Failed to update discount rule');
+    } finally {
+      setStatus('idle');
+    }
+  };
+
+  const deleteDiscountRule = async (id) => {
+    if (!token) return;
+    setStatus('loading');
+    setMessage('');
+    try {
+      await api.admin.discountRules.remove(token, id);
+      setMessage('Discount rule deleted.');
+      await loadTabData('discount_rules');
+    } catch (err) {
+      setMessage(err?.message ?? 'Failed to delete discount rule');
     } finally {
       setStatus('idle');
     }
@@ -1994,62 +2133,104 @@ export default function AdminDashboardPage() {
 
           {tab === 'discount_rules' ? (
             <div className="admin-panel">
-              <h3 className="h3">Bulk discount rules</h3>
-              <p className="muted">{integrationNote}</p>
-              <form className="contact-form" onSubmit={(e) => e.preventDefault()}>
+              <h3 className="h3">{editingDiscountRuleId ? 'Edit bulk discount rule' : 'Add bulk discount rule'}</h3>
+              <p className="muted">These rules apply automatically when customers checkout with multiple courses.</p>
+              <form className="contact-form" onSubmit={editingDiscountRuleId ? saveDiscountRuleEdit : createDiscountRule}>
                 <div className="admin-split">
                   <label className="field">
                     <span className="field-label">Min courses</span>
-                    <input className="input" value={discountRuleForm.min_courses} onChange={(e) => setDiscountRuleForm((s) => ({ ...s, min_courses: e.target.value }))} disabled />
+                    <input
+                      className="input"
+                      value={discountRuleForm.min_courses}
+                      onChange={(e) => setDiscountRuleForm((s) => ({ ...s, min_courses: e.target.value }))}
+                      required
+                    />
                   </label>
                   <label className="field">
                     <span className="field-label">Max courses</span>
-                    <input className="input" value={discountRuleForm.max_courses} onChange={(e) => setDiscountRuleForm((s) => ({ ...s, max_courses: e.target.value }))} disabled />
+                    <input
+                      className="input"
+                      value={discountRuleForm.max_courses}
+                      onChange={(e) => setDiscountRuleForm((s) => ({ ...s, max_courses: e.target.value }))}
+                      placeholder="Leave blank for no maximum"
+                    />
                   </label>
                 </div>
                 <label className="field">
                   <span className="field-label">Discount percent</span>
-                  <input className="input" value={discountRuleForm.discount_percent} onChange={(e) => setDiscountRuleForm((s) => ({ ...s, discount_percent: e.target.value }))} disabled />
+                  <input
+                    className="input"
+                    value={discountRuleForm.discount_percent}
+                    onChange={(e) => setDiscountRuleForm((s) => ({ ...s, discount_percent: e.target.value }))}
+                    placeholder="15"
+                    required
+                  />
                 </label>
                 <div className="button-row">
-                  <button className="button button-solid" type="button" disabled>
-                    Save rule
+                  <button className="button button-solid" type="submit" disabled={disabled}>
+                    {disabled ? 'Saving…' : editingDiscountRuleId ? 'Update rule' : 'Create rule'}
                   </button>
+                  {editingDiscountRuleId ? (
+                    <button className="button" type="button" onClick={cancelDiscountRuleEdit} disabled={disabled}>
+                      Cancel edit
+                    </button>
+                  ) : null}
                 </div>
               </form>
-              <div className="panel" style={{ marginTop: 16 }}>
-                <h4 className="h4">Example presets</h4>
-                <ul className="list">
-                  <li>
-                    <strong>3–5 courses</strong> <span className="muted">→ 15% off</span>
-                  </li>
-                  <li>
-                    <strong>6+ courses</strong> <span className="muted">→ 20% off</span>
-                  </li>
-                </ul>
+
+              <h3 className="h3" style={{ marginTop: 18 }}>Existing rules</h3>
+              <div className="admin-table">
+                <div className="admin-row admin-head">
+                  <div>ID</div>
+                  <div>Range</div>
+                  <div>Percent</div>
+                  <div>Active</div>
+                  <div>Actions</div>
+                </div>
+                {discountRules.map((r) => (
+                  <div key={r.id} className="admin-row">
+                    <div>{r.id}</div>
+                    <div>
+                      {r.max_courses == null ? `${r.min_courses}+` : `${r.min_courses}–${r.max_courses}`}
+                    </div>
+                    <div>{r.discount_percent}%</div>
+                    <div>{r.is_active ? 'Yes' : 'No'}</div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button className="button button-ghost" type="button" onClick={() => beginDiscountRuleEdit(r)} disabled={disabled}>
+                        Edit
+                      </button>
+                      <button className="button admin-danger" type="button" onClick={() => deleteDiscountRule(r.id)} disabled={disabled}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
+              {!discountRules.length ? <p className="muted">No rules yet. Add one above.</p> : null}
             </div>
           ) : null}
 
           {tab === 'notifications' ? (
             <div className="admin-panel">
               <h3 className="h3">Email & notifications</h3>
-              <p className="muted">{integrationNote}</p>
+              <p className="muted">
+                Broadcast sends to newsletter subscribers. In local dev, emails are queued and may be logged instead of delivered if SMTP is not configured.
+              </p>
 
               <div className="admin-two-col">
                 <div className="panel" style={{ margin: 0 }}>
                   <h4 className="h4">Broadcast newsletter</h4>
-                  <form className="contact-form" onSubmit={(e) => e.preventDefault()}>
+                  <form className="contact-form" onSubmit={submitBroadcast}>
                     <label className="field">
                       <span className="field-label">Subject</span>
-                      <input className="input" value={broadcastForm.subject} onChange={(e) => setBroadcastForm((s) => ({ ...s, subject: e.target.value }))} disabled />
+                      <input className="input" value={broadcastForm.subject} onChange={(e) => setBroadcastForm((s) => ({ ...s, subject: e.target.value }))} required />
                     </label>
                     <label className="field">
                       <span className="field-label">Message</span>
-                      <textarea className="input textarea" rows={5} value={broadcastForm.body_text} onChange={(e) => setBroadcastForm((s) => ({ ...s, body_text: e.target.value }))} disabled />
+                      <textarea className="input textarea" rows={5} value={broadcastForm.body_text} onChange={(e) => setBroadcastForm((s) => ({ ...s, body_text: e.target.value }))} required />
                     </label>
-                    <button className="button button-solid" type="button" disabled>
-                      Send broadcast
+                    <button className="button button-solid" type="submit" disabled={disabled}>
+                      {disabled ? 'Queueing…' : 'Send broadcast'}
                     </button>
                   </form>
                 </div>
@@ -2114,6 +2295,29 @@ export default function AdminDashboardPage() {
                     <label className="field">
                       <span className="field-label">Image URL</span>
                       <input className="input" value={homepageForm.hero_image_url} onChange={(e) => setHomepageForm((s) => ({ ...s, hero_image_url: e.target.value }))} placeholder="/hero.jpeg or https://…" />
+                      <input
+                        className="input"
+                        type="file"
+                        accept="image/*"
+                        disabled={disabled || mediaUploading}
+                        style={{ marginTop: 10 }}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            const url = await uploadMediaAndGetUrl(file, { isPublic: true });
+                            setHomepageForm((s) => ({ ...s, hero_image_url: url }));
+                            setMessage('Hero image uploaded.');
+                          } catch (err) {
+                            setMessage(err?.message ?? 'Failed to upload image');
+                          } finally {
+                            e.target.value = '';
+                          }
+                        }}
+                      />
+                      <p className="muted" style={{ marginTop: 8 }}>
+                        Upload an image to use as the hero background.
+                      </p>
                     </label>
                   </div>
                   <label className="field">
@@ -2165,6 +2369,26 @@ export default function AdminDashboardPage() {
                   <label className="field">
                     <span className="field-label">Featured image URL</span>
                     <input className="input" value={aboutCmsForm.featured_image_url} onChange={(e) => setAboutCmsForm((s) => ({ ...s, featured_image_url: e.target.value }))} />
+                    <input
+                      className="input"
+                      type="file"
+                      accept="image/*"
+                      disabled={disabled || mediaUploading}
+                      style={{ marginTop: 10 }}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const url = await uploadMediaAndGetUrl(file, { isPublic: true });
+                          setAboutCmsForm((s) => ({ ...s, featured_image_url: url }));
+                          setMessage('Featured image uploaded.');
+                        } catch (err) {
+                          setMessage(err?.message ?? 'Failed to upload image');
+                        } finally {
+                          e.target.value = '';
+                        }
+                      }}
+                    />
                   </label>
                   <label className="field">
                     <span className="field-label">Content HTML</span>
@@ -2397,6 +2621,26 @@ export default function AdminDashboardPage() {
                     <label className="field">
                       <span className="field-label">OG image URL</span>
                       <input className="input" value={seoForm.og_image_url} onChange={(e) => setSeoForm((s) => ({ ...s, og_image_url: e.target.value }))} />
+                      <input
+                        className="input"
+                        type="file"
+                        accept="image/*"
+                        disabled={disabled || mediaUploading}
+                        style={{ marginTop: 10 }}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            const url = await uploadMediaAndGetUrl(file, { isPublic: true });
+                            setSeoForm((s) => ({ ...s, og_image_url: url }));
+                            setMessage('OG image uploaded.');
+                          } catch (err) {
+                            setMessage(err?.message ?? 'Failed to upload image');
+                          } finally {
+                            e.target.value = '';
+                          }
+                        }}
+                      />
                     </label>
                     <label className="field">
                       <span className="field-label">Canonical URL</span>
@@ -2418,6 +2662,26 @@ export default function AdminDashboardPage() {
                     <label className="field">
                       <span className="field-label">Image URL</span>
                       <input className="input" value={galleryForm.image_url} onChange={(e) => setGalleryForm((s) => ({ ...s, image_url: e.target.value }))} required />
+                      <input
+                        className="input"
+                        type="file"
+                        accept="image/*"
+                        disabled={disabled || mediaUploading}
+                        style={{ marginTop: 10 }}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            const url = await uploadMediaAndGetUrl(file, { isPublic: true });
+                            setGalleryForm((s) => ({ ...s, image_url: url }));
+                            setMessage('Gallery image uploaded.');
+                          } catch (err) {
+                            setMessage(err?.message ?? 'Failed to upload image');
+                          } finally {
+                            e.target.value = '';
+                          }
+                        }}
+                      />
                     </label>
                     <label className="field">
                       <span className="field-label">Alt text</span>
@@ -2487,7 +2751,7 @@ export default function AdminDashboardPage() {
           {tab === 'reports' ? (
             <div className="admin-panel">
               <h3 className="h3">Reports</h3>
-              <p className="muted">{integrationNote}</p>
+              <p className="muted">Coming soon.</p>
               <div className="admin-two-col">
                 <div className="panel" style={{ margin: 0 }}>
                   <h4 className="h4">Revenue</h4>
@@ -2512,40 +2776,39 @@ export default function AdminDashboardPage() {
           {tab === 'settings' ? (
             <div className="admin-panel">
               <h3 className="h3">Site settings</h3>
-              <p className="muted">{integrationNote}</p>
-              <form className="contact-form" onSubmit={(e) => e.preventDefault()}>
+              <p className="muted">These settings are stored in the database and used by the frontend.</p>
+              <form className="contact-form" onSubmit={saveSettings}>
                 <div className="admin-split">
                   <label className="field">
                     <span className="field-label">Site name</span>
-                    <input className="input" value={settingsForm.site_name} onChange={(e) => setSettingsForm((s) => ({ ...s, site_name: e.target.value }))} disabled />
+                    <input className="input" value={settingsForm.site_name} onChange={(e) => setSettingsForm((s) => ({ ...s, site_name: e.target.value }))} required />
                   </label>
                   <label className="field">
                     <span className="field-label">Currency</span>
-                    <input className="input" value={settingsForm.currency} onChange={(e) => setSettingsForm((s) => ({ ...s, currency: e.target.value }))} disabled />
+                    <input className="input" value={settingsForm.currency} onChange={(e) => setSettingsForm((s) => ({ ...s, currency: e.target.value }))} placeholder="INR" />
                   </label>
                 </div>
                 <div className="admin-split">
                   <label className="field">
                     <span className="field-label">Logo URL</span>
-                    <input className="input" value={settingsForm.logo_url} onChange={(e) => setSettingsForm((s) => ({ ...s, logo_url: e.target.value }))} disabled />
+                    <input className="input" value={settingsForm.logo_url} onChange={(e) => setSettingsForm((s) => ({ ...s, logo_url: e.target.value }))} placeholder="/api/media/123/file" />
                   </label>
                   <label className="field">
                     <span className="field-label">Favicon URL</span>
-                    <input className="input" value={settingsForm.favicon_url} onChange={(e) => setSettingsForm((s) => ({ ...s, favicon_url: e.target.value }))} disabled />
+                    <input className="input" value={settingsForm.favicon_url} onChange={(e) => setSettingsForm((s) => ({ ...s, favicon_url: e.target.value }))} placeholder="/favicon.svg" />
                   </label>
                 </div>
                 <label className="field">
                   <span className="field-label">GST number</span>
-                  <input className="input" value={settingsForm.gst_number} onChange={(e) => setSettingsForm((s) => ({ ...s, gst_number: e.target.value }))} disabled />
+                  <input className="input" value={settingsForm.gst_number} onChange={(e) => setSettingsForm((s) => ({ ...s, gst_number: e.target.value }))} />
                 </label>
                 <label className="field field-inline">
-                  <input type="checkbox" checked={settingsForm.maintenance_mode} onChange={(e) => setSettingsForm((s) => ({ ...s, maintenance_mode: e.target.checked }))} disabled />
+                  <input type="checkbox" checked={settingsForm.maintenance_mode} onChange={(e) => setSettingsForm((s) => ({ ...s, maintenance_mode: e.target.checked }))} />
                   <span className="field-label">Maintenance mode</span>
                 </label>
-                <button className="button button-solid" type="button" disabled>
-                  Save settings
+                <button className="button button-solid" type="submit" disabled={disabled}>
+                  {disabled ? 'Saving…' : 'Save settings'}
                 </button>
-                <p className="muted">Payment credentials, SEO metadata, roles/admin access will be added here during integration.</p>
               </form>
             </div>
           ) : null}
@@ -2970,6 +3233,29 @@ export default function AdminDashboardPage() {
                 <label className="field">
                   <span className="field-label">Recording URL</span>
                   <input className="input" value={recordingForm.recording_url} onChange={(e) => setRecordingForm((s) => ({ ...s, recording_url: e.target.value }))} placeholder="https://..." required />
+                  <input
+                    className="input"
+                    type="file"
+                    accept="video/*"
+                    disabled={disabled || mediaUploading}
+                    style={{ marginTop: 10 }}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        const url = await uploadMediaAndGetUrl(file, { isPublic: true });
+                        setRecordingForm((s) => ({ ...s, recording_url: url }));
+                        setMessage('Recording uploaded.');
+                      } catch (err) {
+                        setMessage(err?.message ?? 'Failed to upload recording');
+                      } finally {
+                        e.target.value = '';
+                      }
+                    }}
+                  />
+                  <p className="muted" style={{ marginTop: 8 }}>
+                    Upload a video file, or paste an external URL (YouTube/Vimeo/Drive).
+                  </p>
                 </label>
                 <div className="button-row">
                   <button className="button button-solid" type="submit" disabled={disabled}>{disabled ? 'Saving…' : editingRecordingId ? 'Update recording' : 'Add recording'}</button>

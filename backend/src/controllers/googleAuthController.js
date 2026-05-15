@@ -7,6 +7,7 @@ import { generateOpaqueToken, generateTokenFamily, hashToken, signAccessToken } 
 import { insertRefreshToken } from '../models/refreshTokenModel.js';
 import { createUser, findUserByEmail, findUserById, setEmailVerified } from '../models/userModel.js';
 import { getRequestAuditContext, logAuditEvent } from '../services/auditLogService.js';
+import { notifyAdmins } from '../services/notificationService.js';
 
 const callbackSchema = z.object({
   code: z.string().min(5),
@@ -244,6 +245,17 @@ export async function googleCallback(req, res, next) {
         const created = await createUser({ name, email, passwordHash, role: 'user' });
         await setEmailVerified({ userId: created.id });
         user = await findUserById(created.id);
+
+        notifyAdmins(
+          {
+            notificationType: 'admin_new_user',
+            title: 'New Google signup',
+            message: `${name} (${email}) signed up with Google.`,
+            linkUrl: '/admin/dashboard',
+            metadata: { user_id: created.id, email },
+          },
+          { conn },
+        ).catch(() => {});
       } else if (!user.email_verified_at) {
         await setEmailVerified({ userId: user.id });
         user = await findUserById(user.id);

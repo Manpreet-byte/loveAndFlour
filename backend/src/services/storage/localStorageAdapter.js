@@ -26,7 +26,9 @@ export class LocalStorageAdapter {
     stream.on('data', (chunk) => {
       size += chunk.length;
       if (sizeLimitBytes && size > sizeLimitBytes) {
-        stream.destroy(new Error('File too large'));
+        const err = new Error('File too large');
+        err.status = 413;
+        stream.destroy(err);
         return;
       }
       hash.update(chunk);
@@ -53,4 +55,3 @@ export class LocalStorageAdapter {
     await fsp.rm(fullPath, { force: true });
   }
 }
-

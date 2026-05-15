@@ -1585,6 +1585,36 @@ iframe {
   }
 }
 
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes floatDrift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, -10px, 0);
+  }
+}
+
+@keyframes subtleGlow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgba(229, 138, 31, 0));
+  }
+  50% {
+    filter: drop-shadow(0 10px 18px rgba(229, 138, 31, 0.14));
+  }
+}
+
 .hero-premium-badge {
   margin: 0 0 18px;
   color: var(--accent);
@@ -1630,6 +1660,38 @@ iframe {
 
 .hero-premium-actions .button {
   min-width: 160px;
+}
+
+.hero-premium-content .button,
+.hero-premium-content .hero-premium-badge,
+.hero-premium-content .hero-premium-title,
+.hero-premium-content .hero-premium-subtitle {
+  animation: fadeInUp 800ms var(--ease-out) both;
+}
+
+.hero-premium-content .hero-premium-badge {
+  animation-delay: 100ms;
+}
+
+.hero-premium-content .hero-premium-title {
+  animation-delay: 150ms;
+}
+
+.hero-premium-content .hero-premium-subtitle {
+  animation-delay: 220ms;
+}
+
+.hero-premium-content .hero-premium-actions {
+  animation-delay: 280ms;
+}
+
+.hero-premium-media::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 18% 24%, rgba(255, 255, 255, 0.16), transparent 28%);
+  animation: subtleGlow 6s ease-in-out infinite;
+  pointer-events: none;
 }
 
 @media (max-width: 768px) {
@@ -1787,6 +1849,82 @@ iframe {
 
 .pathway-card:hover::before {
   opacity: 1;
+}
+
+.home-featured .section-heading,
+.home-course-value .section-heading,
+.home-pathways .section-heading,
+.home-classroom .section-heading,
+.home-testimonials .section-heading,
+.home-faq .section-heading,
+.home-together .section-heading,
+.bakery-showcase-head,
+.bakery-showcase-copy {
+  animation: fadeInUp 700ms var(--ease-out) both;
+}
+
+.home-featured .cards-grid > *,
+.home-pathways .pathways-grid > *,
+.home-classroom .classroom-grid > *,
+.bakery-showcase-cards > *,
+.home-testimonials .testimonial-card,
+.home-testimonials .testimonials-controls,
+.home-together .home-together-feature,
+.admin-page .panel,
+.admin-page .admin-panel,
+.auth-card,
+.panel,
+.card,
+.stat-card {
+  animation: fadeInScale 700ms var(--ease-out) both;
+}
+
+.home-featured .cards-grid > *:nth-child(2),
+.home-pathways .pathways-grid > *:nth-child(2),
+.home-classroom .classroom-grid > *:nth-child(2),
+.bakery-showcase-cards > *:nth-child(2),
+.home-testimonials .testimonial-card:nth-child(2),
+.home-together .home-together-feature:nth-child(2) {
+  animation-delay: 90ms;
+}
+
+.home-featured .cards-grid > *:nth-child(3),
+.home-pathways .pathways-grid > *:nth-child(3),
+.home-classroom .classroom-grid > *:nth-child(3),
+.bakery-showcase-cards > *:nth-child(3),
+.home-testimonials .testimonial-card:nth-child(3),
+.home-together .home-together-feature:nth-child(3) {
+  animation-delay: 150ms;
+}
+
+.home-featured .cards-grid > *:nth-child(4),
+.home-pathways .pathways-grid > *:nth-child(4),
+.home-classroom .classroom-grid > *:nth-child(4),
+.bakery-showcase-cards > *:nth-child(4),
+.home-testimonials .testimonial-card:nth-child(4),
+.home-together .home-together-feature:nth-child(4) {
+  animation-delay: 210ms;
+}
+
+.home-featured .cards-grid > *,
+.home-pathways .pathways-grid > *,
+.home-classroom .classroom-grid > *,
+.bakery-showcase-cards > *,
+.home-testimonials .testimonial-card,
+.home-together .home-together-feature,
+.card,
+.panel,
+.stat-card {
+  will-change: transform, opacity;
+}
+
+.course-card-media img,
+.recipe-card-media img,
+.bakery-mini-card img,
+.hero-image img,
+.home-together-icon,
+.classroom-icon {
+  animation: floatDrift 5.5s ease-in-out infinite alternate;
 }
 
 .home-together {
@@ -2385,10 +2523,15 @@ iframe {
 }
 
 .bakery-showcase-bar img {
-  width: 36px;
-  height: 36px;
-  object-fit: cover;
-  border-radius: 50%;
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
+  object-position: center;
+  flex-shrink: 0;
+  border-radius: 16px;
+  background: #fff7ef;
+  padding: 6px;
+  box-sizing: border-box;
 }
 
 .bakery-showcase-bar nav {
@@ -2689,6 +2832,44 @@ iframe {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .hero-premium-media img,
+  .hero-premium-media::after,
+  .hero-premium-content .hero-premium-badge,
+  .hero-premium-content .hero-premium-title,
+  .hero-premium-content .hero-premium-subtitle,
+  .hero-premium-content .hero-premium-actions,
+  .home-featured .section-heading,
+  .home-course-value .section-heading,
+  .home-pathways .section-heading,
+  .home-classroom .section-heading,
+  .home-testimonials .section-heading,
+  .home-faq .section-heading,
+  .home-together .section-heading,
+  .bakery-showcase-head,
+  .bakery-showcase-copy,
+  .home-featured .cards-grid > *,
+  .home-pathways .pathways-grid > *,
+  .home-classroom .classroom-grid > *,
+  .bakery-showcase-cards > *,
+  .home-testimonials .testimonial-card,
+  .home-testimonials .testimonials-controls,
+  .home-together .home-together-feature,
+  .admin-page .panel,
+  .admin-page .admin-panel,
+  .auth-card,
+  .panel,
+  .card,
+  .stat-card,
+  .course-card-media img,
+  .recipe-card-media img,
+  .bakery-mini-card img,
+  .hero-image img,
+  .home-together-icon,
+  .classroom-icon {
+    animation: none !important;
+    transform: none !important;
+  }
+
   .testimonial-card {
     transition: none;
   }
@@ -2702,6 +2883,11 @@ iframe {
   .bakery-showcase-bar {
     flex-wrap: wrap;
     justify-content: center;
+  }
+
+  .bakery-showcase-bar img {
+    width: 48px;
+    height: 48px;
   }
 
   .bakery-showcase-bar nav {

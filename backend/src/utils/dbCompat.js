@@ -272,6 +272,21 @@ export async function ensureAuthSupportTables({ pool }) {
 export async function ensureCommerceTables({ pool }) {
   const tables = [
     {
+      name: 'discount_rules',
+      ddl: `CREATE TABLE IF NOT EXISTS discount_rules (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        min_courses INT UNSIGNED NOT NULL,
+        max_courses INT UNSIGNED NULL,
+        discount_percent DECIMAL(5,2) NOT NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_discount_rules_active_min (is_active, min_courses),
+        KEY idx_discount_rules_active_max (is_active, max_courses)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    },
+    {
       name: 'orders',
       ddl: `CREATE TABLE IF NOT EXISTS orders (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -510,6 +525,25 @@ export async function ensureCommerceTables({ pool }) {
  */
 export async function ensureUserExperienceTables({ pool }) {
   const tables = [
+    {
+      name: 'push_subscriptions',
+      ddl: `CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_id INT UNSIGNED NOT NULL,
+        endpoint VARCHAR(512) NOT NULL,
+        p256dh VARCHAR(255) NOT NULL,
+        auth VARCHAR(255) NOT NULL,
+        user_agent VARCHAR(255) NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uk_push_subscriptions_user_endpoint (user_id, endpoint),
+        KEY idx_push_subscriptions_user_id (user_id),
+        CONSTRAINT fk_push_subscriptions_user_id
+          FOREIGN KEY (user_id) REFERENCES users(id)
+          ON DELETE CASCADE ON UPDATE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    },
     {
       name: 'user_preferences',
       ddl: `CREATE TABLE IF NOT EXISTS user_preferences (

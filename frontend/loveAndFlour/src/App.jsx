@@ -70,6 +70,17 @@ function AdminRoute({ children }) {
   return children;
 }
 
+function UserDashboardRoute({ children }) {
+  const hydrated = useAuthStore((s) => s.hydrated);
+  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
+  const location = useLocation();
+  if (!hydrated) return null;
+  if (!token) return <Navigate to="/login" replace state={{ from: location }} />;
+  if (user?.role === 'admin') return <Navigate to="/admin/dashboard" replace />;
+  return children;
+}
+
 function InstructorRoute({ children }) {
   const hydrated = useAuthStore((s) => s.hydrated);
   const token = useAuthStore((s) => s.token);
@@ -202,9 +213,9 @@ export default function App() {
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute>
+            <UserDashboardRoute>
               <DashboardPage />
-            </ProtectedRoute>
+            </UserDashboardRoute>
           }
         />
         <Route

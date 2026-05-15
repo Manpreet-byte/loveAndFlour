@@ -6,6 +6,7 @@ import { createOrder, findOrderByIdForUser, listOrderItems } from '../models/ord
 import { createPayment, listPaymentsForOrder, updatePaymentProviderOrder } from '../models/paymentModel.js';
 import { parseCheckoutRequest, computeCheckout } from '../services/checkoutService.js';
 import { createRazorpayOrder } from '../services/payments/razorpayClient.js';
+import { notifyAdmins } from '../services/notificationService.js';
 
 const orderIdSchema = z.object({
   id: z.coerce.number().int().positive(),
@@ -116,6 +117,15 @@ export async function createCheckoutOrder(req, res, next) {
       return { orderId: id, paymentId };
     });
 
+    // Admin realtime notifications: order started/created
+    notifyAdmins({
+      notificationType: 'admin_new_order',
+      title: `New order #${orderId.orderId}`,
+      message: `Checkout started by user #${userId}. Total: ${quote.currency} ${(quote.totalCents / 100).toFixed(2)}.`,
+      linkUrl: '/admin/dashboard',
+      metadata: { order_id: orderId.orderId, user_id: userId, total_cents: quote.totalCents, currency: quote.currency },
+    }).catch(() => {});
+
     // Create provider-side order AFTER committing internal order (avoids holding DB tx during external call).
     const amountPaise = quote.totalCents;
     const receipt = `order_${orderId.orderId}`;
@@ -174,4 +184,3 @@ export async function getMyOrder(req, res, next) {
     return next(err);
   }
 }
-

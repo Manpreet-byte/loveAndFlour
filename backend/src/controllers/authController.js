@@ -16,6 +16,7 @@ import { withTransaction } from '../utils/dbTx.js';
 import { clearRefreshCookie, setRefreshCookie } from '../utils/authCookies.js';
 import { generateOpaqueToken, generateTokenFamily, hashToken, signAccessToken } from '../utils/tokens.js';
 import { getRequestAuditContext, logAuditEvent } from '../services/auditLogService.js';
+import { notifyAdmins } from '../services/notificationService.js';
 import {
   findRefreshTokenByHash,
   insertRefreshToken,
@@ -134,6 +135,15 @@ export async function signup(req, res, next) {
     });
 
     await sendEmailVerification({ user: enrichedUser });
+
+    // Admin realtime notifications: new signup
+    notifyAdmins({
+      notificationType: 'admin_new_user',
+      title: 'New user signup',
+      message: `${user.name} (${user.email}) created an account.`,
+      linkUrl: '/admin/dashboard',
+      metadata: { user_id: user.id, email: user.email },
+    }).catch(() => {});
 
     logAuditEvent({
       actorType: 'user',

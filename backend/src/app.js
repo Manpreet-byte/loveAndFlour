@@ -24,6 +24,7 @@ import cartRoutes from './routes/cartRoutes.js';
 import certificateRoutes from './routes/certificateRoutes.js';
 import searchRoutes from './routes/searchRoutes.js';
 import healthRoutes from './routes/healthRoutes.js';
+import mediaRoutes from './routes/mediaRoutes.js';
 import { live as liveHandler, ready as readyHandler } from './controllers/healthController.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import communityRoutes from './routes/communityRoutes.js';
@@ -89,6 +90,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/feed', userFeedRoutes);
 app.use('/api/cart', cartRoutes);
+app.use('/api/media', mediaRoutes);
 
 // If a user navigates to protected API endpoints directly in a browser tab,
 // redirect them to the frontend app instead of showing a confusing JSON auth error.

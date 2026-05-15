@@ -99,3 +99,16 @@ export async function updateUserProfile({ userId, name, phone }) {
   await pool.query(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, values);
   return findUserById(userId);
 }
+
+export async function listAdminUsers({ limit = 50 } = {}) {
+  const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
+  const [rows] = await pool.query(
+    `SELECT id, email, name
+       FROM users
+      WHERE role = 'admin'
+   ORDER BY id ASC
+      LIMIT ?`,
+    [safeLimit],
+  );
+  return rows ?? [];
+}

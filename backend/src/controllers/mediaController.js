@@ -30,6 +30,11 @@ export async function uploadMedia(req, res, next) {
         file.resume();
         return;
       }
+      file.on('limit', () => {
+        const err = new Error('File too large');
+        err.status = 413;
+        file.destroy(err);
+      });
       filePromise = storeUploadedStream({
         user: req.user,
         fileStream: file,
@@ -131,4 +136,3 @@ export async function listMediaForUser(req, res, next) {
     return next(err);
   }
 }
-

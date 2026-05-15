@@ -140,6 +140,41 @@ async function download(path, { token } = {}) {
   return res.blob();
 }
 
+async function uploadFormData(path, formData, { token } = {}) {
+  const resolvedToken = token ?? getAccessToken();
+  const headers = {};
+  if (resolvedToken) headers.Authorization = `Bearer ${resolvedToken}`;
+
+  let res;
+  try {
+    res = await fetch(`${getBaseUrl()}${path}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+      credentials: 'include',
+    });
+  } catch (err) {
+    const e = new Error('Network error. Please check your connection and try again.');
+    e.offline = typeof navigator !== 'undefined' ? navigator.onLine === false : false;
+    e.cause = err;
+    throw e;
+  }
+
+  const contentType = res.headers.get('content-type') ?? '';
+  const isJson = contentType.includes('application/json');
+  const data = isJson ? await res.json().catch(() => null) : await res.text().catch(() => null);
+
+  if (!res.ok) {
+    const message = data?.error?.message ?? `Request failed (${res.status})`;
+    const err = new Error(message);
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+
+  return data;
+}
+
 export const api = {
   analytics: {
     track: async ({ event_type, entity_type, entity_id, metadata } = {}) => {
@@ -474,6 +509,32 @@ export const api = {
         return request(qs ? `/api/admin/internal-notes?${qs}` : '/api/admin/internal-notes', { token });
       },
       create: (token, payload) => request('/api/admin/internal-notes', { method: 'POST', token, body: payload }),
+    },
+
+    settings: {
+      get: (token) => request('/api/admin/settings', { token }),
+      patch: (token, payload) => request('/api/admin/settings', { method: 'PATCH', token, body: payload }),
+    },
+
+    discountRules: {
+      list: (token) => request('/api/admin/discount-rules', { token }),
+      create: (token, payload) => request('/api/admin/discount-rules', { method: 'POST', token, body: payload }),
+      patch: (token, id, payload) => request(`/api/admin/discount-rules/${encodeURIComponent(id)}`, { method: 'PATCH', token, body: payload }),
+      remove: (token, id) => request(`/api/admin/discount-rules/${encodeURIComponent(id)}`, { method: 'DELETE', token }),
+    },
+
+    notifications: {
+      broadcast: (token, payload) => request('/api/admin/notifications/broadcast', { method: 'POST', token, body: payload }),
+    },
+
+    media: {
+      upload: async (token, file, { isPublic = true } = {}) => {
+        const fd = new FormData();
+        fd.append('file', file);
+        if (isPublic) fd.append('is_public', '1');
+        return uploadFormData('/api/admin/media/upload', fd, { token });
+      },
+      publicFileUrl: (id) => `${getBaseUrl()}/api/media/${encodeURIComponent(id)}/file`,
     },
 
     courses: {

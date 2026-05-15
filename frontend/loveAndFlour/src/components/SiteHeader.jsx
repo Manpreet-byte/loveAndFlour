@@ -258,7 +258,7 @@ export default function SiteHeader({ onCartClick }) {
           </button>
           {token ? (
             <>
-              <NotificationsBell token={token} />
+              <NotificationsBell token={token} enabled={role === 'admin'} />
               {role === 'admin' ? (
                 <NavLink className={({ isActive }) => `nav-link nav-link-action${isActive ? ' is-active' : ''}`} to="/admin/dashboard">
                   Admin
@@ -269,9 +269,11 @@ export default function SiteHeader({ onCartClick }) {
                   Instructor
                 </NavLink>
               ) : null}
-              <NavLink className={({ isActive }) => `nav-link nav-link-action${isActive ? ' is-active' : ''}`} to="/dashboard">
-                Dashboard
-              </NavLink>
+              {role !== 'admin' ? (
+                <NavLink className={({ isActive }) => `nav-link nav-link-action${isActive ? ' is-active' : ''}`} to="/dashboard">
+                  Dashboard
+                </NavLink>
+              ) : null}
               <NavLink className={({ isActive }) => `nav-link nav-link-action${isActive ? ' is-active' : ''}`} to="/profile">
                 Profile
               </NavLink>

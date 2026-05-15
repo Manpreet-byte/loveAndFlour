@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { pool } from '../config/db.js';
 import { findActiveCouponByCode, countCouponUsages, countCouponUsagesForUser } from '../models/couponModel.js';
+import { findBulkDiscountRuleForQty } from '../models/discountRuleModel.js';
 
 const checkoutSchema = z.object({
   provider: z.enum(['razorpay']).default('razorpay'),
@@ -97,13 +98,25 @@ export async function computeCheckout({ userId, items, couponCode }) {
   let discountCents = 0;
   let coupon = null;
 
-  // Bulk discount engine (configurable later):
-  // 3–5 courses → 15%, 6+ → 20%
   const totalQty = lineItems.reduce((sum, li) => sum + Number(li.quantity ?? 1), 0);
-  if (totalQty >= 3 && totalQty <= 5) {
-    bulkDiscountCents = Math.floor((subtotalCents * 15) / 100);
-  } else if (totalQty >= 6) {
-    bulkDiscountCents = Math.floor((subtotalCents * 20) / 100);
+  // Bulk discount engine:
+  // - Uses DB-configured rules if present.
+  // - Falls back to legacy defaults if no rule matches (keeps existing behavior).
+  try {
+    const rule = await findBulkDiscountRuleForQty({ qty: totalQty });
+    if (rule && rule.discount_percent != null) {
+      const pct = Math.min(100, Math.max(0, Number(rule.discount_percent)));
+      bulkDiscountCents = Math.floor((subtotalCents * pct) / 100);
+    } else {
+      // Legacy defaults:
+      // 3–5 courses → 15%, 6+ → 20%
+      if (totalQty >= 3 && totalQty <= 5) bulkDiscountCents = Math.floor((subtotalCents * 15) / 100);
+      else if (totalQty >= 6) bulkDiscountCents = Math.floor((subtotalCents * 20) / 100);
+    }
+  } catch {
+    // Do not fail checkout if discounts table is missing or DB compat hasn't run yet.
+    if (totalQty >= 3 && totalQty <= 5) bulkDiscountCents = Math.floor((subtotalCents * 15) / 100);
+    else if (totalQty >= 6) bulkDiscountCents = Math.floor((subtotalCents * 20) / 100);
   }
 
   if (couponCode) {

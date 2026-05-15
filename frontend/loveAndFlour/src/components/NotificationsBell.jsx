@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 
-export default function NotificationsBell({ token }) {
+export default function NotificationsBell({ token, enabled = true }) {
+  if (!enabled) return null;
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -34,16 +35,21 @@ export default function NotificationsBell({ token }) {
   useEffect(() => {
     if (!token) return;
     let active = true;
-    // Keep unread badge reasonably fresh without being chatty.
-    api.user.notifications
-      .list(token, { limit: 1 })
-      .then((data) => {
-        if (!active) return;
-        setUnread(Number(data?.unread_count ?? 0));
-      })
-      .catch(() => {});
+    // Keep unread badge fresh (admin realtime polling).
+    const tick = () =>
+      api.user.notifications
+        .list(token, { limit: 1 })
+        .then((data) => {
+          if (!active) return;
+          setUnread(Number(data?.unread_count ?? 0));
+        })
+        .catch(() => {});
+
+    tick();
+    const id = window.setInterval(tick, 10_000);
     return () => {
       active = false;
+      window.clearInterval(id);
     };
   }, [token, location.pathname]);
 
@@ -171,4 +177,3 @@ export default function NotificationsBell({ token }) {
     </div>
   );
 }
-

@@ -36,6 +36,9 @@ import { adminCreateInstructor, adminListInstructors, adminPatchInstructor } fro
 import { addCourseTeamMember, listCourseTeam, patchCourseTeamMember, removeCourseTeamMember } from '../controllers/courseTeamController.js';
 import { createInternalNote, listInternalNotes } from '../controllers/internalNotesController.js';
 import { adminAddCourseFeedback, adminListCourseFeedback, adminSetCourseWorkflowStatus } from '../controllers/courseReviewController.js';
+import { adminGetSettings, adminPatchSettings } from '../controllers/adminSettingsController.js';
+import { adminCreateDiscountRule, adminDeleteDiscountRule, adminListDiscountRules, adminPatchDiscountRule } from '../controllers/discountRuleAdminController.js';
+import { adminBroadcastEmail } from '../controllers/adminNotificationController.js';
 
 const router = Router();
 
@@ -59,6 +62,19 @@ router.patch('/instructors/:id', adminPatchInstructor);
 router.get('/dashboard', (_req, res) => {
   res.json({ ok: true, scope: 'admin' });
 });
+
+// Admin configurable settings used by frontend.
+router.get('/settings', adminGetSettings);
+router.patch('/settings', adminPatchSettings);
+
+// Bulk discount rules (checkout engine)
+router.get('/discount-rules', adminListDiscountRules);
+router.post('/discount-rules', adminCreateDiscountRule);
+router.patch('/discount-rules/:id', adminPatchDiscountRule);
+router.delete('/discount-rules/:id', adminDeleteDiscountRule);
+
+// Admin broadcast email (newsletter)
+router.post('/notifications/broadcast', adminBroadcastEmail);
 
 // System observability (admin-only)
 router.get('/system/health', adminSystemHealth);
