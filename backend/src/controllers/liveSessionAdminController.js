@@ -8,13 +8,16 @@ const sessionSchema = z.object({
   course_id: z.coerce.number().int().positive(),
   title: z.string().max(255).optional().nullable(),
   scheduled_at: z.string().datetime(),
-  status: z.enum(['upcoming', 'live', 'completed']).default('upcoming'),
+  status: z.enum(['upcoming', 'live', 'completed', 'cancelled']).default('upcoming'),
   zoom_meeting_id: z.string().max(64).optional().nullable(),
   zoom_join_url: z.string().url().max(2048).optional().nullable(),
+  seat_limit: z.coerce.number().int().min(0).max(100000).optional().default(0),
+  duration_minutes: z.coerce.number().int().min(15).max(24 * 60).optional().default(120),
+  replay_days: z.coerce.number().int().min(1).max(3650).optional().default(365),
 });
 
 const updateSchema = sessionSchema.partial().extend({
-  status: z.enum(['upcoming', 'live', 'completed']).optional(),
+  status: z.enum(['upcoming', 'live', 'completed', 'cancelled']).optional(),
 });
 
 export async function createLiveSession(req, res, next) {
@@ -23,7 +26,7 @@ export async function createLiveSession(req, res, next) {
     const scheduledAt = toMysqlDatetime(payload.scheduled_at);
     if (!scheduledAt) return res.status(400).json({ error: { message: 'Invalid scheduled_at' } });
     const [result] = await pool.query(
-      'INSERT INTO live_sessions (course_id, title, scheduled_at, status, zoom_meeting_id, zoom_join_url) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO live_sessions (course_id, title, scheduled_at, status, zoom_meeting_id, zoom_join_url, seat_limit, duration_minutes, replay_days, recording_state, cancelled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         payload.course_id,
         payload.title ?? null,
@@ -31,6 +34,11 @@ export async function createLiveSession(req, res, next) {
         payload.status,
         payload.zoom_meeting_id ?? null,
         payload.zoom_join_url ?? null,
+        payload.seat_limit ?? 0,
+        payload.duration_minutes ?? 120,
+        payload.replay_days ?? 365,
+        payload.status === 'completed' ? 'processing' : 'none',
+        payload.status === 'cancelled' ? new Date() : null,
       ],
     );
 
@@ -74,6 +82,9 @@ export async function updateLiveSession(req, res, next) {
       ['status', 'status'],
       ['zoom_meeting_id', 'zoom_meeting_id'],
       ['zoom_join_url', 'zoom_join_url'],
+      ['seat_limit', 'seat_limit'],
+      ['duration_minutes', 'duration_minutes'],
+      ['replay_days', 'replay_days'],
     ]) {
       if (payload[key] !== undefined) {
         fields.push(`${col} = ?`);
@@ -85,6 +96,12 @@ export async function updateLiveSession(req, res, next) {
           values.push(payload[key] ?? null);
         }
       }
+    }
+    // Handle cancel toggle.
+    if (payload.status === 'cancelled') {
+      fields.push('cancelled_at = COALESCE(cancelled_at, NOW())');
+    } else if (payload.status && payload.status !== 'cancelled') {
+      fields.push('cancelled_at = NULL');
     }
     if (!fields.length) return res.json({ ok: true });
     values.push(id);

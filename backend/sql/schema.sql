@@ -194,7 +194,10 @@ CREATE TABLE email_outbox (
   attempts INT UNSIGNED NOT NULL DEFAULT 0,
   last_error TEXT NULL,
   scheduled_at DATETIME NULL,
+  next_attempt_at DATETIME NULL,
   sent_at DATETIME NULL,
+  provider_message_id VARCHAR(255) NULL,
+  provider_response TEXT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -374,6 +377,19 @@ CREATE TABLE payments (
   CONSTRAINT fk_payments_user_id
     FOREIGN KEY (user_id) REFERENCES users(id)
     ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE order_notification_log (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  order_id BIGINT UNSIGNED NOT NULL,
+  notification_type ENUM('order_confirmation_email') NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_order_notification_once (order_id, notification_type),
+  KEY idx_order_notification_order_id (order_id),
+  CONSTRAINT fk_order_notification_order_id
+    FOREIGN KEY (order_id) REFERENCES orders(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE webhook_events (

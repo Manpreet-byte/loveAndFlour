@@ -86,12 +86,3 @@ export const adminLimiter = rateLimit({
   keyGenerator: ipKey,
   store: redisStore,
 });
-
-export const aiLimiter = rateLimit({
-  windowMs: env.RATE_LIMIT_AI_WINDOW_MS,
-  max: env.RATE_LIMIT_AI_MAX,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: ipKey,
-  store: redisStore,
-});

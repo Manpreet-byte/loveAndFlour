@@ -39,9 +39,17 @@
 Emails are queued into `email_outbox` and sent by an in-process worker started by `src/server.js`.
 
 To enable real emails, configure SMTP in `.env`:
-- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`
+- `SMTP_PROVIDER` (optional): `custom|gmail|sendgrid|mailgun`
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`
+- `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME`
+- Optional hardening: `SMTP_SECURE`, `SMTP_REQUIRE_TLS`, `SMTP_TLS_REJECT_UNAUTHORIZED`
 
 If SMTP is not configured, the backend logs the email payload in development.
+
+Admin operational endpoints:
+- `GET /api/admin/emails/stats`
+- `GET /api/admin/emails/outbox`
+- `POST /api/admin/emails/outbox/:id/resend`
 
 Automated notifications:
 - Live session scheduled/updated (includes Zoom join URL when present)

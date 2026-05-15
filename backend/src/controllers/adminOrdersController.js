@@ -5,6 +5,7 @@ import { listOrderItems, markOrderPaid } from '../models/orderModel.js';
 import { createPayment, listPaymentsForOrder, markPaymentCaptured } from '../models/paymentModel.js';
 import { fulfillPaidOrder } from '../services/payments/orderFulfillment.js';
 import { getRequestAuditContext, logAuditEvent } from '../services/auditLogService.js';
+import { createRazorpayRefund } from '../services/payments/razorpayRefundClient.js';
 
 const listSchema = z.object({
   status: z.string().optional().nullable(),
@@ -184,6 +185,7 @@ export async function adminRefundOrder(req, res, next) {
     if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: { message: 'Invalid order id' } });
     const payload = refundSchema.parse(req.body ?? {});
 
+    let providerRefund = null;
     await withTransaction(async (conn) => {
       const [rows] = await conn.query('SELECT id, user_id, status, currency, total_cents FROM orders WHERE id = ? FOR UPDATE', [id]);
       const order = rows?.[0];
@@ -194,15 +196,58 @@ export async function adminRefundOrder(req, res, next) {
       }
       const amount = Math.min(Number(payload.amount_cents), Number(order.total_cents));
 
-      // Create refund record (provider-agnostic; provider integration can be added later).
-      await conn.query(
+      const [pRows] = await conn.query(
+        `SELECT id, provider, provider_payment_id
+           FROM payments
+          WHERE order_id = ?
+            AND status = 'captured'
+       ORDER BY id DESC
+          LIMIT 1
+          FOR UPDATE`,
+        [id],
+      );
+      const payment = pRows?.[0] ?? null;
+      if (!payment) {
+        const err = new Error('No captured payment found for this order');
+        err.status = 400;
+        throw err;
+      }
+      if (String(payment.provider) !== 'razorpay') {
+        const err = new Error(`Refund not supported for provider: ${payment.provider}`);
+        err.status = 400;
+        throw err;
+      }
+      if (!payment.provider_payment_id) {
+        const err = new Error('Missing Razorpay payment id (provider_payment_id). Refund cannot be created.');
+        err.status = 400;
+        throw err;
+      }
+
+      const [ins] = await conn.query(
         `INSERT INTO refunds (order_id, payment_id, amount_cents, currency, reason, status)
-         VALUES (?, NULL, ?, ?, ?, 'processed')`,
-        [id, amount, order.currency, payload.reason ?? null],
+         VALUES (?, ?, ?, ?, ?, 'requested')`,
+        [id, payment.id, amount, order.currency, payload.reason ?? null],
+      );
+      const refundId = ins?.insertId ?? null;
+
+      providerRefund = await createRazorpayRefund({
+        providerPaymentId: payment.provider_payment_id,
+        amountPaise: amount > 0 ? amount : null,
+        notes: { internal_order_id: String(id), internal_refund_id: refundId ? String(refundId) : undefined },
+      });
+
+      await conn.query(
+        `UPDATE refunds
+            SET status = 'processed',
+                provider_refund_id = ?,
+                processed_at = NOW(),
+                metadata_json = JSON_SET(COALESCE(metadata_json, JSON_OBJECT()), '$.provider_status', ?, '$.provider_payload', CAST(? AS JSON))
+          WHERE id = ?`,
+        [String(providerRefund?.id ?? ''), String(providerRefund?.status ?? ''), JSON.stringify(providerRefund ?? {}), refundId],
       );
 
       await conn.query("UPDATE orders SET status = 'refunded', updated_at = CURRENT_TIMESTAMP WHERE id = ?", [id]);
-      await conn.query("UPDATE payments SET status = 'refunded', updated_at = CURRENT_TIMESTAMP WHERE order_id = ?", [id]);
+      await conn.query("UPDATE payments SET status = 'refunded', refunded_at = NOW(), updated_at = CURRENT_TIMESTAMP WHERE id = ?", [payment.id]);
 
       logAuditEvent({
         actorType: 'admin',
@@ -212,11 +257,11 @@ export async function adminRefundOrder(req, res, next) {
         entityId: id,
         ...getRequestAuditContext(req),
         statusCode: 200,
-        metadata: { amount_cents: amount, reason: payload.reason ?? null },
+        metadata: { amount_cents: amount, reason: payload.reason ?? null, provider: 'razorpay', provider_refund_id: providerRefund?.id ?? null },
       });
     });
 
-    return res.json({ ok: true });
+    return res.json({ ok: true, provider_refund: providerRefund ? { id: providerRefund.id, status: providerRefund.status } : null });
   } catch (err) {
     return next(err);
   }
@@ -296,4 +341,3 @@ export async function adminDownloadInvoice(req, res, next) {
     return next(err);
   }
 }
-

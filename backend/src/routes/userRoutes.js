@@ -15,6 +15,7 @@ import { myRecordings } from '../controllers/userFeedController.js';
 import { listNotifications, readAll, readNotification } from '../controllers/userNotificationsController.js';
 import { getMyPreferences, patchMyPreferences } from '../controllers/userPreferencesController.js';
 import { offlineProgressSync, offlineSync } from '../controllers/offlineSyncController.js';
+import { getLiveSessionAccess } from '../controllers/liveSessionAccessController.js';
 
 const router = Router();
 
@@ -39,6 +40,9 @@ router.get('/orders/:id/invoice', authenticateUser, downloadMyInvoice);
 
 // Recordings (user-only)
 router.get('/recordings', authenticateUser, myRecordings);
+
+// Live session access (join + replay)
+router.get('/live-sessions/:id/access', authenticateUser, getLiveSessionAccess);
 
 // In-app notifications
 router.get('/notifications', authenticateUser, listNotifications);

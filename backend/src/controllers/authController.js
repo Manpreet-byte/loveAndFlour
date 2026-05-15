@@ -12,6 +12,7 @@ import {
   setPasswordHashAndBumpVersion,
 } from '../models/userModel.js';
 import { enqueueEmail } from '../services/emailOutbox.js';
+import { buildLinkEmail } from '../services/emailTemplates.js';
 import { withTransaction } from '../utils/dbTx.js';
 import { clearRefreshCookie, setRefreshCookie } from '../utils/authCookies.js';
 import { generateOpaqueToken, generateTokenFamily, hashToken, signAccessToken } from '../utils/tokens.js';
@@ -107,11 +108,17 @@ async function sendEmailVerification({ user }) {
   await insertEmailVerificationToken({ userId: user.id, tokenHash, expiresAt: addMinutes(60) });
 
   const url = `${env.PUBLIC_WEB_BASE_URL.replace(/\/$/, '')}/verify-email?token=${raw}`;
+  const rendered = buildLinkEmail({
+    title: 'Verify your email',
+    introText: 'Please verify your email address to start using your account.',
+    linkUrl: url,
+    ctaLabel: 'Verify email',
+  });
   await enqueueEmail({
     toEmail: user.email,
     subject: 'Verify your email',
-    bodyText: `Verify your email address: ${url}`,
-    bodyHtml: `<p>Verify your email address:</p><p><a href="${url}">${url}</a></p>`,
+    bodyText: rendered.text,
+    bodyHtml: rendered.html,
   });
 }
 
@@ -422,11 +429,17 @@ export async function forgotPassword(req, res, next) {
     await insertPasswordResetToken({ userId: user.id, tokenHash, expiresAt: addMinutes(30) });
 
     const url = `${env.PUBLIC_WEB_BASE_URL.replace(/\/$/, '')}/reset-password?token=${raw}`;
+    const rendered = buildLinkEmail({
+      title: 'Reset your password',
+      introText: 'You requested a password reset. If this wasn’t you, you can ignore this email.',
+      linkUrl: url,
+      ctaLabel: 'Reset password',
+    });
     await enqueueEmail({
       toEmail: user.email,
       subject: 'Reset your password',
-      bodyText: `Reset your password: ${url}`,
-      bodyHtml: `<p>Reset your password:</p><p><a href="${url}">${url}</a></p>`,
+      bodyText: rendered.text,
+      bodyHtml: rendered.html,
     });
 
     logAuditEvent({

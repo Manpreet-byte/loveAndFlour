@@ -1,5 +1,8 @@
 import { pool } from '../config/db.js';
 import { enqueueBulkEmail } from './emailOutbox.js';
+import { buildBrandedEmailHtml } from './emailTemplates.js';
+import { env } from '../utils/env.js';
+import { enqueuePushForUsers } from './push/pushOutboxService.js';
 
 const REMINDER_TYPES = {
   REMINDER_24H: 'reminder_24h',
@@ -51,6 +54,18 @@ async function listEnrolledUserEmails(courseId) {
   return rows.map((r) => r.email).filter(Boolean);
 }
 
+async function listEnrolledUserIds(courseId) {
+  const [rows] = await pool.query(
+    `SELECT DISTINCT e.user_id
+       FROM enrollments e
+      WHERE e.course_id = ?
+        AND e.status = 'active'
+        AND e.expiry_date >= CURDATE()`,
+    [courseId],
+  );
+  return (rows ?? []).map((r) => Number(r.user_id)).filter((n) => Number.isFinite(n) && n > 0);
+}
+
 function buildReminderEmail({ reminderType, courseTitle, sessionTitle, scheduledAt, zoomJoinUrl }) {
   const is24h = reminderType === REMINDER_TYPES.REMINDER_24H;
   const whenText = is24h ? 'in ~24 hours' : 'in ~1 hour';
@@ -67,13 +82,22 @@ function buildReminderEmail({ reminderType, courseTitle, sessionTitle, scheduled
     .filter(Boolean)
     .join('\n');
 
-  const bodyHtml = `
+  const rawHtml = `
     <p><strong>Course:</strong> ${courseTitle}</p>
     ${sessionTitle ? `<p><strong>Session:</strong> ${sessionTitle}</p>` : ''}
     <p><strong>Scheduled at:</strong> ${new Date(scheduledAt).toISOString()}</p>
     ${zoomJoinUrl ? `<p><strong>Zoom link:</strong> <a href="${zoomJoinUrl}">${zoomJoinUrl}</a></p>` : ''}
     <p>If you can’t access the link, please login to your dashboard and check your enrollment validity.</p>
   `.trim();
+
+  const dashboardUrl = `${env.PUBLIC_WEB_BASE_URL.replace(/\/$/, '')}/dashboard`;
+  const bodyHtml = buildBrandedEmailHtml({
+    title: subject,
+    preheader: bodyText.split('\n').find((l) => l.trim()) ?? '',
+    contentHtml: rawHtml,
+    ctaLabel: 'Open dashboard',
+    ctaUrl: dashboardUrl,
+  });
 
   return { subject, bodyText, bodyHtml };
 }
@@ -99,8 +123,17 @@ export async function processLiveSessionReminders({ reminderType }) {
     });
 
     await enqueueBulkEmail({ toEmails, subject, bodyText, bodyHtml });
+
+    const userIds = await listEnrolledUserIds(session.course_id);
+    await enqueuePushForUsers({
+      userIds,
+      title: subject,
+      body: zoomJoinUrl ? `Tap to open the Zoom link.` : `Your session starts soon.`,
+      url: '/live-sessions',
+      tag: `live_session:${session.live_session_id}:${reminderType}`,
+      data: { live_session_id: session.live_session_id, course_id: session.course_id },
+    });
   }
 }
 
 export { REMINDER_TYPES };
-

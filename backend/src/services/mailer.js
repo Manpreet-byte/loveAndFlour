@@ -2,6 +2,7 @@ import { env } from '../utils/env.js';
 
 let transporter;
 let nodemailerModule;
+let transporterVerified = false;
 
 async function loadNodemailer() {
   if (nodemailerModule) return nodemailerModule;
@@ -13,10 +14,45 @@ async function loadNodemailer() {
   }
 }
 
+function resolveSmtpConfig() {
+  const provider = env.SMTP_PROVIDER ?? 'custom';
+
+  let host = env.SMTP_HOST;
+  let port = env.SMTP_PORT;
+  let secure = env.SMTP_SECURE ?? null;
+
+  if (!host && provider === 'gmail') {
+    host = 'smtp.gmail.com';
+    port = 465;
+    if (secure == null) secure = true;
+  }
+  if (!host && provider === 'sendgrid') {
+    host = 'smtp.sendgrid.net';
+    port = 587;
+  }
+  if (!host && provider === 'mailgun') {
+    host = 'smtp.mailgun.org';
+    port = 587;
+  }
+
+  if (!host) return null;
+
+  return {
+    provider,
+    host,
+    port,
+    secure: secure ?? port === 465,
+    requireTLS: env.SMTP_REQUIRE_TLS ?? undefined,
+    auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASSWORD } : undefined,
+    tlsRejectUnauthorized: env.SMTP_TLS_REJECT_UNAUTHORIZED ?? undefined,
+  };
+}
+
 async function getTransporter() {
   if (transporter) return transporter;
 
-  if (!env.SMTP_HOST) {
+  const smtpConfig = resolveSmtpConfig();
+  if (!smtpConfig) {
     transporter = null;
     return transporter;
   }
@@ -30,10 +66,18 @@ async function getTransporter() {
   }
 
   transporter = nodemailer.default.createTransport({
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT,
-    secure: env.SMTP_PORT === 465,
-    auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASSWORD } : undefined,
+    host: smtpConfig.host,
+    port: smtpConfig.port,
+    secure: smtpConfig.secure,
+    requireTLS: smtpConfig.requireTLS,
+    auth: smtpConfig.auth,
+    pool: true,
+    maxConnections: 3,
+    maxMessages: 100,
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
+    tls: smtpConfig.tlsRejectUnauthorized == null ? undefined : { rejectUnauthorized: smtpConfig.tlsRejectUnauthorized },
   });
 
   return transporter;
@@ -44,16 +88,26 @@ export async function sendEmail({ to, subject, text, html }) {
   if (!tx) {
     // eslint-disable-next-line no-console
     console.log('[email:dev]', { to, subject });
-    return { skipped: true };
+    return { skipped: true, reason: 'SMTP not configured' };
   }
 
-  await tx.sendMail({
-    from: env.SMTP_FROM_EMAIL,
+  if (!transporterVerified) {
+    try {
+      await tx.verify();
+      transporterVerified = true;
+    } catch (err) {
+      transporterVerified = false;
+      throw err;
+    }
+  }
+
+  const info = await tx.sendMail({
+    from: env.SMTP_FROM_NAME ? { name: env.SMTP_FROM_NAME, address: env.SMTP_FROM_EMAIL } : env.SMTP_FROM_EMAIL,
     to,
     subject,
     text: text ?? undefined,
     html: html ?? undefined,
   });
 
-  return { sent: true };
+  return { sent: true, messageId: info?.messageId ?? null, response: info?.response ?? null };
 }

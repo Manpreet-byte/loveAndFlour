@@ -31,9 +31,9 @@ import communityRoutes from './routes/communityRoutes.js';
 import supportRoutes from './routes/supportRoutes.js';
 import questionsRoutes from './routes/questionsRoutes.js';
 import pushRoutes from './routes/pushRoutes.js';
-import aiRoutes from './routes/aiRoutes.js';
 import recommendationRoutes from './routes/recommendationRoutes.js';
 import instructorRoutes from './routes/instructorRoutes.js';
+import liveSessionRoutes from './routes/liveSessionRoutes.js';
 import { metricsText } from './services/metricsService.js';
 
 const app = express();
@@ -118,10 +118,10 @@ app.use('/api/certificates', certificateRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api', communityRoutes);
+app.use('/api/live-sessions', liveSessionRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/questions', questionsRoutes);
 app.use('/api/user/push', pushRoutes);
-app.use('/api/ai', aiRoutes);
 app.use('/api', recommendationRoutes);
 app.use('/api/instructor', instructorRoutes);
 

@@ -1,3 +1,5 @@
+import { buildBrandedEmailHtml } from '../emailTemplates.js';
+
 function render(template, vars) {
   return String(template).replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, k) => {
     const v = vars?.[k];
@@ -6,10 +8,20 @@ function render(template, vars) {
 }
 
 export function renderTemplate({ subject, text, html }, vars) {
+  const renderedSubject = render(subject, vars);
+  const renderedText = text ? render(text, vars) : null;
+  const renderedHtml = html ? render(html, vars) : null;
+
+  let wrappedHtml = renderedHtml;
+  if (wrappedHtml && !/<!doctype html>/i.test(wrappedHtml)) {
+    const preheader = renderedText ? String(renderedText).split('\n').find((l) => l.trim()) ?? '' : '';
+    wrappedHtml = buildBrandedEmailHtml({ title: renderedSubject, preheader, contentHtml: wrappedHtml });
+  }
+
   return {
-    subject: render(subject, vars),
-    text: text ? render(text, vars) : null,
-    html: html ? render(html, vars) : null,
+    subject: renderedSubject,
+    text: renderedText,
+    html: wrappedHtml,
   };
 }
 
@@ -30,4 +42,3 @@ export const EMAIL_TEMPLATES = {
     html: '<p>Congrats {{user_name}}!</p><p>Your certificate for <strong>{{course_title}}</strong> has been issued.</p><p>Verification code: <strong>{{verification_code}}</strong></p>',
   },
 };
-

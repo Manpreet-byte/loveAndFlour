@@ -133,6 +133,55 @@ async function tableExists({ pool, tableName }) {
   return Boolean(rows?.[0]?.ok);
 }
 
+async function columnExists({ pool, tableName, columnName }) {
+  const [rows] = await pool.query(
+    `SELECT 1 AS ok
+       FROM information_schema.columns
+      WHERE table_schema = ?
+        AND table_name = ?
+        AND column_name = ?
+      LIMIT 1`,
+    [env.DB_NAME, tableName, columnName],
+  );
+  return Boolean(rows?.[0]?.ok);
+}
+
+async function ensureEmailOutboxUpgrades({ pool }) {
+  const tableName = 'email_outbox';
+  const upgrades = [
+    { name: 'next_attempt_at', ddl: 'ALTER TABLE email_outbox ADD COLUMN next_attempt_at DATETIME NULL AFTER scheduled_at' },
+    { name: 'provider_message_id', ddl: 'ALTER TABLE email_outbox ADD COLUMN provider_message_id VARCHAR(255) NULL AFTER sent_at' },
+    { name: 'provider_response', ddl: 'ALTER TABLE email_outbox ADD COLUMN provider_response TEXT NULL AFTER provider_message_id' },
+  ];
+
+  for (const u of upgrades) {
+    // eslint-disable-next-line no-await-in-loop
+    const exists = await columnExists({ pool, tableName, columnName: u.name });
+    if (exists) continue;
+    logger.warn({ table: tableName, column: u.name }, 'db_compat_email_outbox_upgrade');
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await pool.query(u.ddl);
+      logger.info({ table: tableName, column: u.name }, 'db_compat_email_outbox_column_added');
+    } catch (err) {
+      if (err?.code === 'ER_DUP_FIELDNAME') continue;
+      throw err;
+    }
+  }
+
+  // Backfill next_attempt_at for existing pending/failed rows.
+  try {
+    await pool.query(
+      `UPDATE email_outbox
+          SET next_attempt_at = COALESCE(scheduled_at, created_at)
+        WHERE next_attempt_at IS NULL
+          AND status IN ('pending','failed')`,
+    );
+  } catch (err) {
+    logger.warn({ err }, 'db_compat_email_outbox_backfill_failed');
+  }
+}
+
 /**
  * Ensures core auth/support tables exist for signup/login/refresh flows.
  * This is a dev/staging bootstrap convenience only.
@@ -151,7 +200,10 @@ export async function ensureAuthSupportTables({ pool }) {
         attempts INT UNSIGNED NOT NULL DEFAULT 0,
         last_error TEXT NULL,
         scheduled_at DATETIME NULL,
+        next_attempt_at DATETIME NULL,
         sent_at DATETIME NULL,
+        provider_message_id VARCHAR(255) NULL,
+        provider_response TEXT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
@@ -263,6 +315,11 @@ export async function ensureAuthSupportTables({ pool }) {
       throw err;
     }
   }
+
+  // Non-breaking upgrades for delivery reliability/observability.
+  if (await tableExists({ pool, tableName: 'email_outbox' })) {
+    await ensureEmailOutboxUpgrades({ pool });
+  }
 }
 
 /**
@@ -342,21 +399,45 @@ export async function ensureCommerceTables({ pool }) {
       ddl: `CREATE TABLE IF NOT EXISTS payments (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         order_id BIGINT UNSIGNED NOT NULL,
+        user_id INT UNSIGNED NULL,
         provider VARCHAR(32) NOT NULL,
         provider_order_id VARCHAR(128) NULL,
         provider_payment_id VARCHAR(128) NULL,
+        provider_signature VARCHAR(256) NULL,
         status ENUM('created','pending','authorized','captured','failed','refunded') NOT NULL DEFAULT 'created',
         amount_cents INT UNSIGNED NOT NULL DEFAULT 0,
         currency CHAR(3) NOT NULL DEFAULT 'INR',
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         captured_at DATETIME NULL,
         failed_at DATETIME NULL,
+        refunded_at DATETIME NULL,
+        raw_payload_json LONGTEXT NULL,
         metadata_json JSON NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
         KEY idx_payments_order_id (order_id),
+        KEY idx_payments_user_id (user_id),
         KEY idx_payments_status_created_at (status, created_at),
         KEY idx_payments_provider_order_id (provider_order_id),
         CONSTRAINT fk_payments_order_id
+          FOREIGN KEY (order_id) REFERENCES orders(id)
+          ON DELETE CASCADE ON UPDATE CASCADE,
+        CONSTRAINT fk_payments_user_id
+          FOREIGN KEY (user_id) REFERENCES users(id)
+          ON DELETE SET NULL ON UPDATE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    },
+    {
+      name: 'order_notification_log',
+      ddl: `CREATE TABLE IF NOT EXISTS order_notification_log (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        order_id BIGINT UNSIGNED NOT NULL,
+        notification_type ENUM('order_confirmation_email') NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uk_order_notification_once (order_id, notification_type),
+        KEY idx_order_notification_order_id (order_id),
+        CONSTRAINT fk_order_notification_order_id
           FOREIGN KEY (order_id) REFERENCES orders(id)
           ON DELETE CASCADE ON UPDATE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
@@ -501,6 +582,25 @@ export async function ensureCommerceTables({ pool }) {
         KEY idx_user_notifications_user_id_is_read (user_id, is_read)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     },
+    {
+      name: 'push_outbox',
+      ddl: `CREATE TABLE IF NOT EXISTS push_outbox (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_id INT UNSIGNED NOT NULL,
+        endpoint VARCHAR(512) NOT NULL,
+        payload_json JSON NOT NULL,
+        status ENUM('pending','sent','failed') NOT NULL DEFAULT 'pending',
+        attempts INT UNSIGNED NOT NULL DEFAULT 0,
+        last_error TEXT NULL,
+        scheduled_at DATETIME NULL,
+        sent_at DATETIME NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_push_outbox_status_scheduled (status, scheduled_at),
+        KEY idx_push_outbox_user_id (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    },
   ];
 
   for (const t of tables) {
@@ -515,6 +615,31 @@ export async function ensureCommerceTables({ pool }) {
     } catch (err) {
       logger.error({ err, table: t.name }, 'db_compat_table_create_failed');
       throw err;
+    }
+  }
+
+  // Non-breaking upgrades for older dev DBs.
+  if (await tableExists({ pool, tableName: 'payments' })) {
+    const upgrades = [
+      { name: 'refunded_at', ddl: 'ALTER TABLE payments ADD COLUMN refunded_at DATETIME NULL AFTER failed_at' },
+      { name: 'updated_at', ddl: 'ALTER TABLE payments ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP' },
+      { name: 'user_id', ddl: 'ALTER TABLE payments ADD COLUMN user_id INT UNSIGNED NULL AFTER order_id' },
+      { name: 'provider_signature', ddl: 'ALTER TABLE payments ADD COLUMN provider_signature VARCHAR(256) NULL AFTER provider_payment_id' },
+      { name: 'raw_payload_json', ddl: 'ALTER TABLE payments ADD COLUMN raw_payload_json LONGTEXT NULL AFTER refunded_at' },
+    ];
+    for (const u of upgrades) {
+      // eslint-disable-next-line no-await-in-loop
+      const exists = await columnExists({ pool, tableName: 'payments', columnName: u.name });
+      if (exists) continue;
+      logger.warn({ table: 'payments', column: u.name }, 'db_compat_payments_upgrade');
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        await pool.query(u.ddl);
+        logger.info({ table: 'payments', column: u.name }, 'db_compat_payments_column_added');
+      } catch (err) {
+        if (err?.code === 'ER_DUP_FIELDNAME') continue;
+        throw err;
+      }
     }
   }
 }
@@ -598,6 +723,72 @@ export async function ensureUserExperienceTables({ pool }) {
       logger.error({ err, table: t.name }, 'db_compat_table_create_failed');
       throw err;
     }
+  }
+
+  // Live sessions: add missing columns incrementally (table is expected to exist via schema.sql).
+  try {
+    const [cols] = await pool.query(
+      `SELECT column_name AS c, column_type AS t
+         FROM information_schema.columns
+        WHERE table_schema = ?
+          AND table_name = 'live_sessions'`,
+      [env.DB_NAME],
+    );
+    const existing = new Map((cols ?? []).map((r) => [String(r.c), String(r.t)]));
+
+    const addColumn = async (name, ddl) => {
+      if (existing.has(name)) return;
+      try {
+        await pool.query(ddl);
+        logger.info({ table: 'live_sessions', column: name }, 'db_compat_column_added');
+      } catch (err) {
+        if (err?.code === 'ER_DUP_FIELDNAME') return;
+        throw err;
+      }
+    };
+
+    await addColumn('seat_limit', 'ALTER TABLE live_sessions ADD COLUMN seat_limit INT UNSIGNED NOT NULL DEFAULT 0 AFTER ended_at');
+    await addColumn('duration_minutes', 'ALTER TABLE live_sessions ADD COLUMN duration_minutes INT UNSIGNED NOT NULL DEFAULT 120 AFTER seat_limit');
+    await addColumn(
+      'cancelled_at',
+      'ALTER TABLE live_sessions ADD COLUMN cancelled_at DATETIME NULL AFTER duration_minutes',
+    );
+    await addColumn(
+      'recording_state',
+      "ALTER TABLE live_sessions ADD COLUMN recording_state ENUM('none','processing','ready') NOT NULL DEFAULT 'none' AFTER cancelled_at",
+    );
+    await addColumn('recording_ready_at', 'ALTER TABLE live_sessions ADD COLUMN recording_ready_at DATETIME NULL AFTER recording_state');
+    await addColumn('replay_days', 'ALTER TABLE live_sessions ADD COLUMN replay_days INT UNSIGNED NOT NULL DEFAULT 365 AFTER recording_ready_at');
+
+    // Expand status enum to include cancelled (backward compatible).
+    const statusType = existing.get('status') ?? '';
+    if (statusType && !statusType.includes("'cancelled'")) {
+      logger.warn({ from: statusType }, 'db_compat_live_sessions_status_expand');
+      await pool.query("ALTER TABLE live_sessions MODIFY COLUMN status ENUM('upcoming','live','completed','cancelled') NOT NULL DEFAULT 'upcoming'");
+    }
+  } catch (err) {
+    // If live_sessions doesn't exist yet, don't hard fail in dev.
+    logger.warn({ err }, 'db_compat_live_sessions_columns_skip');
+  }
+
+  // session_recordings: allow nullable URL for processing state (older schema has NOT NULL).
+  try {
+    const [[col]] = await pool.query(
+      `SELECT IS_NULLABLE AS n
+         FROM information_schema.columns
+        WHERE table_schema = ?
+          AND table_name = 'session_recordings'
+          AND column_name = 'recording_url'
+        LIMIT 1`,
+      [env.DB_NAME],
+    );
+    const isNullable = String(col?.n ?? '').toUpperCase() === 'YES';
+    if (col && !isNullable) {
+      logger.warn({ table: 'session_recordings', column: 'recording_url' }, 'db_compat_recording_url_nullable');
+      await pool.query('ALTER TABLE session_recordings MODIFY COLUMN recording_url VARCHAR(2048) NULL');
+    }
+  } catch (err) {
+    logger.warn({ err }, 'db_compat_session_recordings_columns_skip');
   }
 }
 
@@ -808,6 +999,77 @@ export async function ensureSupportTables({ pool }) {
         CONSTRAINT fk_support_messages_sender_id
           FOREIGN KEY (sender_id) REFERENCES users(id)
           ON DELETE SET NULL ON UPDATE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    },
+  ];
+
+  for (const t of tables) {
+    // eslint-disable-next-line no-await-in-loop
+    const exists = await tableExists({ pool, tableName: t.name });
+    if (exists) continue;
+    logger.warn({ table: t.name, db: env.DB_NAME }, 'db_compat_table_missing');
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await pool.query(t.ddl);
+      logger.info({ table: t.name }, 'db_compat_table_created');
+    } catch (err) {
+      logger.error({ err, table: t.name }, 'db_compat_table_create_failed');
+      throw err;
+    }
+  }
+}
+
+/**
+ * Ensures LMS core tables exist (completions + certificates).
+ * This is a dev/staging bootstrap convenience only.
+ */
+export async function ensureLmsCoreTables({ pool }) {
+  const tables = [
+    {
+      name: 'user_course_completions',
+      ddl: `CREATE TABLE IF NOT EXISTS user_course_completions (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_id INT UNSIGNED NOT NULL,
+        course_id BIGINT UNSIGNED NOT NULL,
+        completed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uk_user_course_completions_user_course (user_id, course_id),
+        KEY idx_user_course_completions_course_user (course_id, user_id),
+        KEY idx_user_course_completions_completed_at (completed_at),
+        CONSTRAINT fk_user_course_completions_user_id
+          FOREIGN KEY (user_id) REFERENCES users(id)
+          ON DELETE CASCADE ON UPDATE CASCADE,
+        CONSTRAINT fk_user_course_completions_course_id
+          FOREIGN KEY (course_id) REFERENCES courses(id)
+          ON DELETE CASCADE ON UPDATE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    },
+    {
+      name: 'certificates',
+      ddl: `CREATE TABLE IF NOT EXISTS certificates (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        certificate_id CHAR(36) NOT NULL,
+        user_id INT UNSIGNED NOT NULL,
+        course_id BIGINT UNSIGNED NOT NULL,
+        issued_at DATETIME NOT NULL,
+        verification_code CHAR(32) NOT NULL,
+        status ENUM('active','revoked') NOT NULL DEFAULT 'active',
+        revoked_at DATETIME NULL,
+        revoke_reason VARCHAR(255) NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uk_certificates_cert_id (certificate_id),
+        UNIQUE KEY uk_certificates_verification_code (verification_code),
+        UNIQUE KEY uk_certificates_user_course (user_id, course_id),
+        KEY idx_certificates_course_user (course_id, user_id),
+        KEY idx_certificates_status_issued (status, issued_at),
+        CONSTRAINT fk_certificates_user_id
+          FOREIGN KEY (user_id) REFERENCES users(id)
+          ON DELETE CASCADE ON UPDATE CASCADE,
+        CONSTRAINT fk_certificates_course_id
+          FOREIGN KEY (course_id) REFERENCES courses(id)
+          ON DELETE CASCADE ON UPDATE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     },
   ];

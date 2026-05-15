@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { pool } from '../config/db.js';
 import { getRequestAuditContext, logAuditEvent } from '../services/auditLogService.js';
+import { enqueuePushForUsers } from '../services/push/pushOutboxService.js';
 
 function stripScripts(html) {
   const raw = String(html ?? '');
@@ -375,6 +376,21 @@ export async function adminPatchAnnouncements(req, res, next) {
       ...getRequestAuditContext(req),
       statusCode: 201,
     });
+
+    // Best-effort push broadcast for active announcements.
+    if (payload.is_active) {
+      const [users] = await pool.query(`SELECT id FROM users LIMIT 50000`).catch(() => [[]]);
+      const userIds = (users ?? []).map((u) => Number(u.id)).filter((n) => Number.isFinite(n) && n > 0);
+      enqueuePushForUsers({
+        userIds,
+        title: 'New announcement',
+        body: payload.message,
+        url: payload.cta_url ? String(payload.cta_url) : '/',
+        tag: `announcement:${result.insertId}`,
+        data: { announcement_id: result.insertId },
+      }).catch(() => null);
+    }
+
     return res.status(201).json({ id: result.insertId });
   } catch (err) {
     return next(err);

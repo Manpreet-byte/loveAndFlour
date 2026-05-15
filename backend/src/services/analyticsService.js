@@ -180,7 +180,21 @@ export async function getRevenueAnalytics({ from, to }) {
     [range.from, range.to],
   );
 
-  return { range, totals, daily, monthly, refunded: { refunded_cents: 0, note: 'Refund tracking placeholder' } };
+  const [[ref]] = await pool.query(
+    `SELECT COALESCE(SUM(p.amount_cents), 0) AS refunded_cents, COUNT(*) AS refunds
+       FROM payments p
+      WHERE p.status = 'refunded'
+        AND COALESCE(p.refunded_at, p.updated_at) >= ? AND COALESCE(p.refunded_at, p.updated_at) < DATE_ADD(?, INTERVAL 1 DAY)`,
+    [range.from, range.to],
+  );
+
+  return {
+    range,
+    totals,
+    daily,
+    monthly,
+    refunded: { refunded_cents: Number(ref?.refunded_cents ?? 0), refunds: Number(ref?.refunds ?? 0) },
+  };
 }
 
 export async function getOrdersSummaryAnalytics({ from, to }) {
@@ -221,6 +235,104 @@ export async function getConversionAnalytics({ from, to }) {
   const visitors = Number(row.visitors ?? 0);
   const purchases = Number(row.purchases ?? 0);
   const rate = visitors > 0 ? Math.round((purchases / visitors) * 10000) / 100 : null;
+
+  // Last-touch attribution based on the most recent `page_view` before each `purchase_verified` per session_id.
+  // This keeps attribution anonymous and session-based.
+  const [attribRows] = await pool.query(
+    `WITH purchases AS (
+        SELECT
+          JSON_UNQUOTE(JSON_EXTRACT(CAST(metadata_json AS JSON), '$.session_id')) AS session_id,
+          MAX(created_at) AS purchased_at
+        FROM analytics_events
+        WHERE event_type = 'purchase_verified'
+          AND created_at >= ? AND created_at < DATE_ADD(?, INTERVAL 1 DAY)
+          AND JSON_EXTRACT(CAST(metadata_json AS JSON), '$.session_id') IS NOT NULL
+        GROUP BY JSON_UNQUOTE(JSON_EXTRACT(CAST(metadata_json AS JSON), '$.session_id'))
+      ),
+      last_touch AS (
+        SELECT
+          p.session_id,
+          (
+            SELECT ae.metadata_json
+              FROM analytics_events ae
+             WHERE ae.event_type = 'page_view'
+               AND JSON_UNQUOTE(JSON_EXTRACT(CAST(ae.metadata_json AS JSON), '$.session_id')) = p.session_id
+               AND ae.created_at <= p.purchased_at
+             ORDER BY ae.created_at DESC
+             LIMIT 1
+          ) AS meta_json
+        FROM purchases p
+      )
+      SELECT
+        COALESCE(JSON_UNQUOTE(JSON_EXTRACT(CAST(meta_json AS JSON), '$.utm_source')), '(direct)') AS utm_source,
+        COALESCE(JSON_UNQUOTE(JSON_EXTRACT(CAST(meta_json AS JSON), '$.utm_medium')), '(none)') AS utm_medium,
+        COALESCE(JSON_UNQUOTE(JSON_EXTRACT(CAST(meta_json AS JSON), '$.referrer_host')), '(none)') AS referrer_host,
+        COUNT(*) AS purchases
+      FROM last_touch
+      GROUP BY utm_source, utm_medium, referrer_host
+      ORDER BY purchases DESC
+      LIMIT 25`,
+    [range.from, range.to],
+  );
+
+  // Multi-touch: count purchases attributed to any touchpoint (utm_source/utm_medium/referrer_host)
+  // that occurred before purchase in the same session. Uses DISTINCT session->touchpoint to avoid overcounting.
+  const [multiRows] = await pool.query(
+    `WITH purchases AS (
+        SELECT
+          JSON_UNQUOTE(JSON_EXTRACT(CAST(metadata_json AS JSON), '$.session_id')) AS session_id,
+          MAX(created_at) AS purchased_at
+        FROM analytics_events
+        WHERE event_type = 'purchase_verified'
+          AND created_at >= ? AND created_at < DATE_ADD(?, INTERVAL 1 DAY)
+          AND JSON_EXTRACT(CAST(metadata_json AS JSON), '$.session_id') IS NOT NULL
+        GROUP BY JSON_UNQUOTE(JSON_EXTRACT(CAST(metadata_json AS JSON), '$.session_id'))
+      ),
+      touches AS (
+        SELECT DISTINCT
+          p.session_id,
+          COALESCE(JSON_UNQUOTE(JSON_EXTRACT(CAST(ae.metadata_json AS JSON), '$.utm_source')), '(direct)') AS utm_source,
+          COALESCE(JSON_UNQUOTE(JSON_EXTRACT(CAST(ae.metadata_json AS JSON), '$.utm_medium')), '(none)') AS utm_medium,
+          COALESCE(JSON_UNQUOTE(JSON_EXTRACT(CAST(ae.metadata_json AS JSON), '$.referrer_host')), '(none)') AS referrer_host
+        FROM purchases p
+        JOIN analytics_events ae
+          ON ae.event_type = 'page_view'
+         AND JSON_UNQUOTE(JSON_EXTRACT(CAST(ae.metadata_json AS JSON), '$.session_id')) = p.session_id
+         AND ae.created_at <= p.purchased_at
+      )
+      SELECT utm_source, utm_medium, referrer_host, COUNT(*) AS purchases
+      FROM touches
+      GROUP BY utm_source, utm_medium, referrer_host
+      ORDER BY purchases DESC
+      LIMIT 50`,
+    [range.from, range.to],
+  );
+
+  function channelGroup({ utm_source, utm_medium, referrer_host }) {
+    const source = String(utm_source ?? '').toLowerCase();
+    const medium = String(utm_medium ?? '').toLowerCase();
+    const ref = String(referrer_host ?? '').toLowerCase();
+    if (source === '(direct)' && (medium === '(none)' || !medium)) return 'Direct';
+    if (medium.includes('email')) return 'Email';
+    if (medium.includes('cpc') || medium.includes('ppc') || medium.includes('paid') || medium.includes('ads')) return 'Paid';
+    if (medium.includes('social') || ['instagram', 'facebook', 'youtube', 'tiktok', 'x.com', 'twitter'].some((d) => source.includes(d) || ref.includes(d))) {
+      return medium.includes('paid') ? 'Paid Social' : 'Organic Social';
+    }
+    if (medium.includes('organic') || medium.includes('seo')) return 'Organic Search';
+    if (medium.includes('referral') || (ref && ref !== '(none)')) return 'Referral';
+    return 'Other';
+  }
+
+  const channelCounts = new Map();
+  for (const r of multiRows ?? []) {
+    const grp = channelGroup(r);
+    channelCounts.set(grp, (channelCounts.get(grp) ?? 0) + Number(r.purchases ?? 0));
+  }
+  const channelTop = [...channelCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 15)
+    .map(([channel, count]) => ({ channel, purchases: count }));
+
   return {
     range,
     visitors,
@@ -228,7 +340,21 @@ export async function getConversionAnalytics({ from, to }) {
     checkouts: Number(row.checkouts ?? 0),
     purchases,
     visitors_to_purchase_rate: rate,
-    note: 'Funnel uses anonymous session_id tracked by frontend; last-touch attribution not implemented.',
+    attribution: {
+      last_touch_top: (attribRows ?? []).map((r) => ({
+        utm_source: r.utm_source,
+        utm_medium: r.utm_medium,
+        referrer_host: r.referrer_host,
+        purchases: Number(r.purchases ?? 0),
+      })),
+      multi_touch_top: (multiRows ?? []).map((r) => ({
+        utm_source: r.utm_source,
+        utm_medium: r.utm_medium,
+        referrer_host: r.referrer_host,
+        purchases: Number(r.purchases ?? 0),
+      })),
+      channel_top: channelTop,
+    },
   };
 }
 

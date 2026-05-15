@@ -27,7 +27,7 @@ export async function getUserDashboard(req, res, next) {
             (SELECT COUNT(*)
                FROM certificates cert
               WHERE cert.user_id = ?
-                AND cert.status = 'issued') AS certificates_earned,
+                AND cert.status = 'active') AS certificates_earned,
             (SELECT COUNT(*)
                FROM live_sessions s
               WHERE s.scheduled_at >= NOW()

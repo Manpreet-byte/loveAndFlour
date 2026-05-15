@@ -11,6 +11,7 @@ import {
   ensureCreatorCollaborationColumns,
   ensureCmsTables,
   ensureCommerceTables,
+  ensureLmsCoreTables,
   ensureSupportTables,
   ensureUserExperienceTables,
   ensureUsersAuthColumns,
@@ -46,6 +47,7 @@ async function preflight() {
     await ensureSupportTables({ pool });
     await ensureCommerceTables({ pool });
     await ensureUserExperienceTables({ pool });
+    await ensureLmsCoreTables({ pool });
     await ensureAnalyticsTables({ pool });
   } catch (err) {
     logger.error({ err }, 'preflight_db_failed');

@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { pool } from '../config/db.js';
 import { enqueueBulkEmail } from '../services/emailOutbox.js';
+import { buildBrandedEmailHtml } from '../services/emailTemplates.js';
+import { env } from '../utils/env.js';
 
 const schema = z.object({
   live_session_id: z.coerce.number().int().positive(),
@@ -31,6 +33,11 @@ export async function createRecording(req, res, next) {
       ],
     );
 
+    // Mark session recording state as ready (best effort; older DBs may not have the column).
+    pool
+      .query(`UPDATE live_sessions SET recording_state = 'ready', recording_ready_at = NOW() WHERE id = ?`, [payload.live_session_id])
+      .catch(() => null);
+
     const [sent] = await pool.query(
       'SELECT 1 FROM live_session_notification_log WHERE live_session_id = ? AND notification_type = ? LIMIT 1',
       [payload.live_session_id, 'recording'],
@@ -44,10 +51,20 @@ export async function createRecording(req, res, next) {
         [payload.course_id],
       );
       const toEmails = users.map((u) => u.email).filter(Boolean);
+      const dashUrl = `${env.PUBLIC_WEB_BASE_URL.replace(/\/$/, '')}/dashboard`;
+      const bodyHtml = buildBrandedEmailHtml({
+        title: 'Recording available for your class',
+        preheader: 'Your class recording is now available.',
+        contentHtml: `<p>Your class recording is now available.</p>
+<p style="word-break:break-all"><a href="${payload.recording_url}">${payload.recording_url}</a></p>`,
+        ctaLabel: 'Open dashboard',
+        ctaUrl: dashUrl,
+      });
       await enqueueBulkEmail({
         toEmails,
         subject: 'Recording available for your class',
         bodyText: `Your class recording is now available.\nRecording link: ${payload.recording_url}`,
+        bodyHtml,
       });
       await pool.query(
         'INSERT IGNORE INTO live_session_notification_log (live_session_id, notification_type) VALUES (?, ?)',

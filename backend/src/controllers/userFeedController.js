@@ -1,5 +1,6 @@
 import { pool } from '../config/db.js';
 import { isSchemaMismatchError } from '../utils/dbErrors.js';
+import { computeLiveSessionState } from '../services/liveSessionStateService.js';
 
 export async function myEnrollments(req, res, next) {
   try {
@@ -65,7 +66,9 @@ export async function myLiveSessions(req, res, next) {
       const [rows] = await pool.query(
         `SELECT s.id AS live_session_id, s.course_id, s.title AS session_title, s.scheduled_at, s.status,
                 c.title AS course_title, c.slug AS course_slug, c.featured_image_url,
-                (SELECT COUNT(*) FROM session_recordings r WHERE r.live_session_id = s.id) AS recordings_count
+                (SELECT COUNT(*) FROM session_recordings r WHERE r.live_session_id = s.id) AS recordings_count,
+                (SELECT COUNT(*) FROM enrollments e2 WHERE e2.course_id = s.course_id AND e2.status = 'active' AND e2.expiry_date >= CURDATE()) AS enrolled_count,
+                s.seat_limit, s.duration_minutes, s.cancelled_at, s.recording_state, s.recording_ready_at, s.replay_days
            FROM live_sessions s
            JOIN courses c ON c.id = s.course_id
           WHERE EXISTS (
@@ -79,7 +82,13 @@ export async function myLiveSessions(req, res, next) {
           LIMIT 200`,
         [userId],
       );
-      res.json({ live_sessions: rows ?? [] });
+      const now = new Date();
+      const normalized = (rows ?? []).map((s) => {
+        const enrolledCount = Number(s.enrolled_count ?? 0);
+        const derived = computeLiveSessionState(s, { now, enrolledCount, ignoreSeatLimit: true });
+        return { ...s, derived_state: derived.state };
+      });
+      res.json({ live_sessions: normalized });
     } catch (err) {
       if (!isSchemaMismatchError(err)) throw err;
       res.json({ live_sessions: [] });

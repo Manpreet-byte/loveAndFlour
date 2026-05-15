@@ -39,6 +39,9 @@ import { adminAddCourseFeedback, adminListCourseFeedback, adminSetCourseWorkflow
 import { adminGetSettings, adminPatchSettings } from '../controllers/adminSettingsController.js';
 import { adminCreateDiscountRule, adminDeleteDiscountRule, adminListDiscountRules, adminPatchDiscountRule } from '../controllers/discountRuleAdminController.js';
 import { adminBroadcastEmail } from '../controllers/adminNotificationController.js';
+import { markRecordingReady } from '../controllers/liveSessionRecordingController.js';
+import { adminSendPush } from '../controllers/adminPushController.js';
+import { adminEmailOutboxStats, adminListEmailOutbox, adminResendEmailOutbox } from '../controllers/adminEmailController.js';
 
 const router = Router();
 
@@ -75,6 +78,12 @@ router.delete('/discount-rules/:id', adminDeleteDiscountRule);
 
 // Admin broadcast email (newsletter)
 router.post('/notifications/broadcast', adminBroadcastEmail);
+router.post('/notifications/push', adminSendPush);
+
+// Email outbox ops
+router.get('/emails/stats', adminEmailOutboxStats);
+router.get('/emails/outbox', adminListEmailOutbox);
+router.post('/emails/outbox/:id/resend', adminResendEmailOutbox);
 
 // System observability (admin-only)
 router.get('/system/health', adminSystemHealth);
@@ -126,6 +135,7 @@ router.post('/live-sessions', createLiveSession);
 router.get('/live-sessions', listLiveSessions);
 router.patch('/live-sessions/:id', updateLiveSession);
 router.delete('/live-sessions/:id', deleteLiveSession);
+router.post('/live-sessions/:id/recording-ready', markRecordingReady);
 
 // Recordings
 router.post('/recordings', createRecording);

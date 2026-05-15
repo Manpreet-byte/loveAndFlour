@@ -3,6 +3,8 @@ import { pool } from '../config/db.js';
 import { slugify } from '../utils/slug.js';
 import { toMysqlDatetime } from '../utils/datetime.js';
 import { invalidateCategories, invalidatePublicCourses } from '../services/cacheInvalidationService.js';
+import { enqueuePushForUsers } from '../services/push/pushOutboxService.js';
+import { sanitizeBasicHtml } from '../utils/sanitizeHtml.js';
 
 const createCourseSchema = z.object({
   title: z.string().min(1).max(255),
@@ -29,12 +31,14 @@ const updateCourseSchema = createCourseSchema.partial().extend({
 export async function createCourse(req, res, next) {
   try {
     const payload = createCourseSchema.parse(req.body);
+    const cleanedSummary = payload.summary != null ? sanitizeBasicHtml(payload.summary) : null;
+    const cleanedContent = payload.content != null ? sanitizeBasicHtml(payload.content) : null;
     const slug = slugify(payload.title);
     const publishedAt = new Date();
 
     const [result] = await pool.query(
       'INSERT INTO courses (title, slug, summary, content, featured_image_url, is_published, published_at) VALUES (?, ?, ?, ?, ?, 1, ?)',
-      [payload.title, slug, payload.summary ?? null, payload.content ?? null, payload.featured_image_url ?? null, publishedAt],
+      [payload.title, slug, cleanedSummary ?? null, cleanedContent ?? null, payload.featured_image_url ?? null, publishedAt],
     );
 
     const courseId = result.insertId;
@@ -99,6 +103,7 @@ export async function updateCourse(req, res, next) {
     }
 
     const payload = updateCourseSchema.parse(req.body);
+    const [[before]] = await pool.query('SELECT is_published, title, slug FROM courses WHERE id = ? LIMIT 1', [courseId]);
     const fields = [];
     const values = [];
 
@@ -110,11 +115,11 @@ export async function updateCourse(req, res, next) {
     }
     if (payload.summary !== undefined) {
       fields.push('summary = ?');
-      values.push(payload.summary ?? null);
+      values.push(payload.summary == null ? null : sanitizeBasicHtml(payload.summary));
     }
     if (payload.content !== undefined) {
       fields.push('content = ?');
-      values.push(payload.content ?? null);
+      values.push(payload.content == null ? null : sanitizeBasicHtml(payload.content));
     }
     if (payload.featured_image_url !== undefined) {
       fields.push('featured_image_url = ?');
@@ -150,6 +155,22 @@ export async function updateCourse(req, res, next) {
 
     await invalidatePublicCourses();
     await invalidateCategories();
+
+    // Push when a course is newly published.
+    if (payload.is_published === true && before && Number(before.is_published) !== 1) {
+      const [[course]] = await pool.query('SELECT id, title, slug FROM courses WHERE id = ? LIMIT 1', [courseId]);
+      const [users] = await pool.query(`SELECT id FROM users LIMIT 50000`).catch(() => [[]]);
+      const userIds = (users ?? []).map((u) => Number(u.id)).filter((n) => Number.isFinite(n) && n > 0);
+      enqueuePushForUsers({
+        userIds,
+        title: 'New course available',
+        body: course?.title ?? 'A new course is now available.',
+        url: course?.slug ? `/courses/${encodeURIComponent(course.slug)}` : '/courses',
+        tag: `course:${courseId}:published`,
+        data: { course_id: courseId },
+      }).catch(() => null);
+    }
+
     return res.json({ ok: true });
   } catch (err) {
     return next(err);

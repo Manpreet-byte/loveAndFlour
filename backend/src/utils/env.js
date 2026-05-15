@@ -35,11 +35,38 @@ const schema = z.object({
       return v === 'true' || v === '1';
     }),
 
+  // SMTP email delivery
+  SMTP_PROVIDER: z.enum(['custom', 'gmail', 'sendgrid', 'mailgun']).optional().default('custom'),
   SMTP_HOST: z.string().optional().default(''),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_SECURE: z
+    .string()
+    .optional()
+    .default('')
+    .transform((v) => {
+      if (v === '') return null;
+      return v === 'true' || v === '1';
+    }),
+  SMTP_REQUIRE_TLS: z
+    .string()
+    .optional()
+    .default('')
+    .transform((v) => {
+      if (v === '') return null;
+      return v === 'true' || v === '1';
+    }),
   SMTP_USER: z.string().optional().default(''),
   SMTP_PASSWORD: z.string().optional().default(''),
   SMTP_FROM_EMAIL: z.string().optional().default('no-reply@loveandflour.local'),
+  SMTP_FROM_NAME: z.string().optional().default('Love & Flour'),
+  SMTP_TLS_REJECT_UNAUTHORIZED: z
+    .string()
+    .optional()
+    .default('')
+    .transform((v) => {
+      if (v === '') return null;
+      return v === 'true' || v === '1';
+    }),
 
   PUBLIC_WEB_BASE_URL: z.string().min(1).default('http://localhost:5173'),
   GOOGLE_OAUTH_CLIENT_ID: z.string().optional().default(''),
@@ -90,22 +117,14 @@ const schema = z.object({
 
   SLOW_QUERY_MS: z.coerce.number().int().positive().default(700),
 
-  RATE_LIMIT_AI_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
-  RATE_LIMIT_AI_MAX: z.coerce.number().int().positive().default(30),
-
-  AI_PROVIDER: z.enum(['mock', 'openai']).default('mock'),
-  OPENAI_API_KEY: z.string().optional().default(''),
-  OPENAI_MODEL: z.string().optional().default('gpt-4.1-mini'),
-
   RAZORPAY_KEY_ID: z.string().optional().default(''),
   RAZORPAY_KEY_SECRET: z.string().optional().default(''),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional().default(''),
   RAZORPAY_ACCOUNT_ID: z.string().optional().default(''),
 
-  STRIPE_SECRET_KEY: z.string().optional().default(''),
-  STRIPE_WEBHOOK_SECRET: z.string().optional().default(''),
+  // Payments: this project currently uses Razorpay. Stripe envs removed to avoid confusion.
 
-  STORAGE_PROVIDER: z.enum(['local', 's3', 'r2']).default('local'),
+  STORAGE_PROVIDER: z.enum(['local']).default('local'),
   MEDIA_LOCAL_ROOT: z.string().min(1).default('./uploads'),
 
   MEDIA_MAX_IMAGE_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
@@ -143,6 +162,11 @@ const schema = z.object({
       if (v === '') return null;
       return v === 'true' || v === '1';
     }),
+
+  // Web Push (VAPID)
+  VAPID_SUBJECT: z.string().optional().default(''),
+  VAPID_PUBLIC_KEY: z.string().optional().default(''),
+  VAPID_PRIVATE_KEY: z.string().optional().default(''),
 });
 
 const parsed = schema.parse(process.env);
@@ -158,6 +182,9 @@ export const env = {
   REDIS_ENABLED: parsed.REDIS_ENABLED ?? (isProd ? true : false),
   METRICS_ENABLED: parsed.METRICS_ENABLED ?? (isProd ? true : false),
   WORKER_ENABLED: parsed.WORKER_ENABLED ?? true,
+  SMTP_SECURE: parsed.SMTP_SECURE ?? null,
+  SMTP_REQUIRE_TLS: parsed.SMTP_REQUIRE_TLS ?? null,
+  SMTP_TLS_REJECT_UNAUTHORIZED: parsed.SMTP_TLS_REJECT_UNAUTHORIZED ?? null,
 };
 
 if (isProd) {
@@ -175,6 +202,12 @@ if (isProd) {
   }
   if (env.ALLOWED_ORIGINS.includes('*')) {
     throw new Error('ALLOWED_ORIGINS must not include "*" in production when using credentialed CORS');
+  }
+
+  // SMTP: production hardening (optional feature; validated when enabled).
+  if (env.SMTP_HOST) {
+    if (!env.SMTP_FROM_EMAIL) throw new Error('SMTP_FROM_EMAIL is required when SMTP_HOST is set');
+    if (!env.SMTP_USER || !env.SMTP_PASSWORD) throw new Error('SMTP_USER and SMTP_PASSWORD are required when SMTP_HOST is set');
   }
 
   // Payments: allow running without providers configured, but if webhooks are enabled they must be secreted.
