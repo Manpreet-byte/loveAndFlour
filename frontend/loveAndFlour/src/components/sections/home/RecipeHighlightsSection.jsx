@@ -4,9 +4,50 @@ import SectionHeading from '../../SectionHeading';
 import { posts as seededPosts } from '../../../data/seededContent';
 import { api } from '../../../api/client';
 import { mergeBySlug, sortByDateDesc } from '../../../utils/publicContent';
+import mediaMap from '../../../data/seed/media-map.json';
+
+const FALLBACK_BAKERY_IMAGES = [
+  '/seed-media/560ebdc890236b1a4092bda8547a446f67b42cc9.jpg',
+  '/seed-media/164a1a2765010bda4c89f1b0bfbbc7bda20ea99c.jpg',
+  '/seed-media/42849221d1bbdd7b1f8f4a1a4dd72ec14c4d431d.jpg',
+  '/seed-media/90fe0f7b913d409627162b8ac6619ec5ac5722c3.jpg',
+  '/seed-media/803645d1e47482b4290bf28a0d2804ed00088ecc.jpg',
+  '/seed-media/4794a4dc013ae8f0ef553acfd0b24f6fe193186e.jpg',
+];
+
+function resolvePostImage(post) {
+  const raw =
+    post?.featuredImage ??
+    post?.featured_image_url ??
+    post?.featuredImageUrl ??
+    post?.thumbnail_url ??
+    post?.thumbnailUrl ??
+    post?.hero_image ??
+    post?.heroImage ??
+    '';
+
+  const value = String(raw ?? '').trim();
+  if (!value) return '';
+
+  if (mediaMap?.[value]) return mediaMap[value];
+
+  const noHost = value.replace(/https?:\/\/loveandflourbypooja\.com/gi, '');
+  if (mediaMap?.[noHost]) return mediaMap[noHost];
+
+  return noHost || value;
+}
+
+function withFallbackImages(list) {
+  const arr = Array.isArray(list) ? list : [];
+  return arr.map((post, index) => {
+    const fallback = FALLBACK_BAKERY_IMAGES[index % FALLBACK_BAKERY_IMAGES.length];
+    const resolvedImage = resolvePostImage(post);
+    return { ...post, featuredImage: resolvedImage || fallback };
+  });
+}
 
 export default function RecipeHighlightsSection() {
-  const [latest, setLatest] = useState(seededPosts.slice(0, 6));
+  const [latest, setLatest] = useState(() => withFallbackImages(seededPosts.slice(0, 6)));
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
 
@@ -16,10 +57,11 @@ export default function RecipeHighlightsSection() {
       .list()
       .then((data) => {
         if (!active) return;
-        setLatest(sortByDateDesc(mergeBySlug(data.recipes ?? [], seededPosts)).slice(0, 6));
+        const merged = sortByDateDesc(mergeBySlug(data.recipes ?? [], seededPosts)).slice(0, 6);
+        setLatest(withFallbackImages(merged));
       })
       .catch(() => {
-        if (active) setLatest(seededPosts.slice(0, 6));
+        if (active) setLatest(withFallbackImages(seededPosts.slice(0, 6)));
       });
 
     return () => {

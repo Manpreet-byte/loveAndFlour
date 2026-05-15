@@ -21,8 +21,10 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
     }
   } else {
     window.addEventListener('load', () => {
+      const base = import.meta.env.BASE_URL || '/';
+      const swUrl = `${String(base).replace(/\/?$/, '/') }sw.js`.replace(/\/{2,}/g, '/');
       navigator.serviceWorker
-        .register('/sw.js')
+        .register(swUrl)
         .catch(() => {
           // SW registration is best-effort.
         });

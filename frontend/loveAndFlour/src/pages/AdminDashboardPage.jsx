@@ -5,6 +5,8 @@ import { api } from '../api/client';
 import ChartCard from '../components/admin/ChartCard';
 import SparklineBarChart from '../components/admin/SparklineBarChart';
 import SparklineLineChart from '../components/admin/SparklineLineChart';
+import { computeRange } from '../utils/admin/dateRange';
+import { downloadCsv, exportHtmlToPdf } from '../utils/admin/exporters';
 
 function parseJsonMaybe(value) {
   if (value == null) return null;
@@ -270,6 +272,18 @@ export default function AdminDashboardPage() {
     body_text: '',
   });
 
+  const [pushForm, setPushForm] = useState({
+    audience: 'all_users',
+    course_id: '',
+    title: '',
+    body: '',
+    url: '/',
+  });
+
+  const [emailOutboxStats, setEmailOutboxStats] = useState(null);
+  const [emailOutbox, setEmailOutbox] = useState([]);
+  const [emailOutboxFilter, setEmailOutboxFilter] = useState({ status: 'failed', q: '' });
+
   const [cmsStatus, setCmsStatus] = useState('idle'); // idle | loading | error
   const [cmsError, setCmsError] = useState('');
   const [cmsMeta, setCmsMeta] = useState({ homepage_updated_at: null, about_updated_at: null });
@@ -356,6 +370,19 @@ export default function AdminDashboardPage() {
     gst_number: '',
     currency: 'INR',
     maintenance_mode: false,
+  });
+
+  const [reportsPreset, setReportsPreset] = useState('last_30');
+  const [reportsFrom, setReportsFrom] = useState('');
+  const [reportsTo, setReportsTo] = useState('');
+  const [reportsStatus, setReportsStatus] = useState('idle'); // idle | loading | error
+  const [reportsError, setReportsError] = useState('');
+  const [reportsData, setReportsData] = useState({
+    range: null,
+    revenue: null,
+    enrollments: null,
+    ordersSummary: null,
+    topCourses: null,
   });
 
   const disabled = useMemo(() => status === 'loading', [status]);
@@ -540,6 +567,13 @@ export default function AdminDashboardPage() {
       } else if (nextTab === 'discount_rules') {
         const data = await api.admin.discountRules.list(token);
         setDiscountRules(data?.rules ?? []);
+      } else if (nextTab === 'notifications') {
+        const [stats, outbox] = await Promise.all([
+          api.admin.emails.stats(token),
+          api.admin.emails.outbox(token, { status: emailOutboxFilter.status || undefined, q: emailOutboxFilter.q || undefined, limit: 25, offset: 0 }),
+        ]);
+        setEmailOutboxStats(stats?.stats ?? stats ?? null);
+        setEmailOutbox(outbox?.outbox ?? outbox ?? []);
       } else if (nextTab === 'settings') {
         const data = await api.admin.settings.get(token);
         const s = data?.settings ?? {};
@@ -805,6 +839,209 @@ export default function AdminDashboardPage() {
     } finally {
       setStatus('idle');
     }
+  };
+
+  const submitPush = async (e) => {
+    e.preventDefault();
+    if (!token) return;
+    setStatus('loading');
+    setMessage('');
+    try {
+      const payload = {
+        audience: pushForm.audience,
+        course_id: pushForm.audience === 'course_enrolled' ? Number(pushForm.course_id) : null,
+        title: pushForm.title,
+        body: pushForm.body,
+        url: pushForm.url || '/',
+      };
+      const res = await api.admin.notifications.push(token, payload);
+      setMessage(`Push queued for ${Number(res?.queued ?? 0)} devices.`);
+      setPushForm((s) => ({ ...s, title: '', body: '' }));
+    } catch (err) {
+      setMessage(err?.message ?? 'Failed to queue push notification');
+    } finally {
+      setStatus('idle');
+    }
+  };
+
+  const refreshEmailOutbox = async () => {
+    if (!token || !isAdmin) return;
+    setStatus('loading');
+    setMessage('');
+    try {
+      const [stats, outbox] = await Promise.all([
+        api.admin.emails.stats(token),
+        api.admin.emails.outbox(token, { status: emailOutboxFilter.status || undefined, q: emailOutboxFilter.q || undefined, limit: 25, offset: 0 }),
+      ]);
+      setEmailOutboxStats(stats?.stats ?? stats ?? null);
+      setEmailOutbox(outbox?.outbox ?? outbox ?? []);
+    } catch (err) {
+      setMessage(err?.message ?? 'Failed to load email outbox');
+    } finally {
+      setStatus('idle');
+    }
+  };
+
+  const resendOutboxEmail = async (id) => {
+    if (!token || !isAdmin) return;
+    setStatus('loading');
+    setMessage('');
+    try {
+      await api.admin.emails.resend(token, id);
+      setMessage('Email re-queued.');
+      await refreshEmailOutbox();
+    } catch (err) {
+      setMessage(err?.message ?? 'Failed to re-queue email');
+    } finally {
+      setStatus('idle');
+    }
+  };
+
+  const generateReports = async () => {
+    if (!token || !isAdmin) return;
+    const range = computeRange({ preset: reportsPreset, from: reportsFrom, to: reportsTo });
+    if (range.preset === 'custom' && (!range.from || !range.to)) {
+      setReportsStatus('error');
+      setReportsError('Select both From and To dates for a custom range.');
+      return;
+    }
+
+    setReportsStatus('loading');
+    setReportsError('');
+    setMessage('');
+    try {
+      const [rev, enr, ordersSum, top] = await Promise.all([
+        api.admin.analytics.revenue(token, range),
+        api.admin.analytics.enrollments(token, range),
+        api.admin.analytics.ordersSummary(token, range),
+        api.admin.analytics.topCourses(token, range),
+      ]);
+      setReportsData({
+        range,
+        revenue: rev?.revenue ?? rev ?? null,
+        enrollments: enr?.enrollments ?? enr ?? null,
+        ordersSummary: ordersSum?.orders_summary ?? ordersSum ?? null,
+        topCourses: top?.top_courses ?? top ?? null,
+      });
+      setReportsStatus('idle');
+      setReportsError('');
+      setMessage('Report generated.');
+    } catch (err) {
+      setReportsStatus('error');
+      setReportsError(err?.message ?? 'Failed to generate report');
+      setMessage(err?.message ?? 'Failed to generate report');
+    }
+  };
+
+  const exportRevenueCsv = () => {
+    const rev = reportsData.revenue;
+    const range = reportsData.range;
+    const daily = rev?.daily ?? [];
+    downloadCsv({
+      filename: `revenue_${range?.from || 'from'}_${range?.to || 'to'}.csv`,
+      headers: ['day', 'revenue_cents', 'payments'],
+      rows: daily.map((d) => [d.day, d.revenue_cents, d.payments]),
+    });
+  };
+
+  const exportRevenuePdf = () => {
+    const rev = reportsData.revenue;
+    const range = reportsData.range;
+    const daily = rev?.daily ?? [];
+    const html = `<table>
+      <thead><tr><th>Day</th><th>Revenue</th><th>Payments</th></tr></thead>
+      <tbody>
+        ${daily
+          .map(
+            (d) =>
+              `<tr><td>${String(d.day ?? '')}</td><td>${formatMoney(d.revenue_cents, 'INR')}</td><td>${Number(d.payments ?? 0)}</td></tr>`,
+          )
+          .join('')}
+      </tbody>
+    </table>`;
+    exportHtmlToPdf({ title: `Revenue report (${range?.from || ''} → ${range?.to || ''})`, html });
+  };
+
+  const exportOrdersCsv = () => {
+    const os = reportsData.ordersSummary;
+    const range = reportsData.range;
+    const rows = os?.summary ?? os?.rows ?? os?.data ?? os?.summary_rows ?? os?.summary ?? [];
+    downloadCsv({
+      filename: `orders_summary_${range?.from || 'from'}_${range?.to || 'to'}.csv`,
+      headers: ['status', 'orders', 'total_cents'],
+      rows: (rows ?? []).map((r) => [r.status, r.orders, r.total_cents]),
+    });
+  };
+
+  const exportOrdersPdf = () => {
+    const os = reportsData.ordersSummary;
+    const range = reportsData.range;
+    const rows = os?.summary ?? [];
+    const html = `<table>
+      <thead><tr><th>Status</th><th>Orders</th><th>Total</th></tr></thead>
+      <tbody>
+        ${(rows ?? [])
+          .map(
+            (r) =>
+              `<tr><td>${String(r.status ?? '')}</td><td>${Number(r.orders ?? 0)}</td><td>${formatMoney(r.total_cents, 'INR')}</td></tr>`,
+          )
+          .join('')}
+      </tbody>
+    </table>`;
+    exportHtmlToPdf({ title: `Orders summary (${range?.from || ''} → ${range?.to || ''})`, html });
+  };
+
+  const exportEnrollmentsCsv = () => {
+    const enr = reportsData.enrollments;
+    const range = reportsData.range;
+    const daily = enr?.daily ?? [];
+    downloadCsv({
+      filename: `enrollments_${range?.from || 'from'}_${range?.to || 'to'}.csv`,
+      headers: ['day', 'enrollments'],
+      rows: daily.map((d) => [d.day, d.enrollments]),
+    });
+  };
+
+  const exportEnrollmentsPdf = () => {
+    const enr = reportsData.enrollments;
+    const range = reportsData.range;
+    const daily = enr?.daily ?? [];
+    const html = `<table>
+      <thead><tr><th>Day</th><th>Enrollments</th></tr></thead>
+      <tbody>
+        ${(daily ?? []).map((d) => `<tr><td>${String(d.day ?? '')}</td><td>${Number(d.enrollments ?? 0)}</td></tr>`).join('')}
+      </tbody>
+    </table>`;
+    exportHtmlToPdf({ title: `Enrollments (${range?.from || ''} → ${range?.to || ''})`, html });
+  };
+
+  const exportTopCoursesCsv = () => {
+    const top = reportsData.topCourses;
+    const range = reportsData.range;
+    const byRevenue = top?.by_revenue ?? [];
+    downloadCsv({
+      filename: `top_courses_${range?.from || 'from'}_${range?.to || 'to'}.csv`,
+      headers: ['course_id', 'title', 'revenue_cents', 'orders'],
+      rows: byRevenue.map((c) => [c.course_id, c.title, c.revenue_cents, c.orders]),
+    });
+  };
+
+  const exportTopCoursesPdf = () => {
+    const top = reportsData.topCourses;
+    const range = reportsData.range;
+    const byRevenue = top?.by_revenue ?? [];
+    const html = `<table>
+      <thead><tr><th>Course</th><th>Revenue</th><th>Orders</th></tr></thead>
+      <tbody>
+        ${(byRevenue ?? [])
+          .map(
+            (c) =>
+              `<tr><td>${String(c.title ?? '')} (#${String(c.course_id ?? '')})</td><td>${formatMoney(c.revenue_cents, 'INR')}</td><td>${Number(c.orders ?? 0)}</td></tr>`,
+          )
+          .join('')}
+      </tbody>
+    </table>`;
+    exportHtmlToPdf({ title: `Top courses (${range?.from || ''} → ${range?.to || ''})`, html });
   };
 
   const createDiscountRule = async (e) => {
@@ -2236,6 +2473,135 @@ export default function AdminDashboardPage() {
                 </div>
 
                 <div className="panel" style={{ margin: 0 }}>
+                  <h4 className="h4">Send push notification</h4>
+                  <form className="contact-form" onSubmit={submitPush}>
+                    <label className="field">
+                      <span className="field-label">Audience</span>
+                      <select className="input" value={pushForm.audience} onChange={(e) => setPushForm((s) => ({ ...s, audience: e.target.value }))}>
+                        <option value="all_users">All users</option>
+                        <option value="course_enrolled">Enrolled (course)</option>
+                      </select>
+                    </label>
+                    {pushForm.audience === 'course_enrolled' ? (
+                      <label className="field">
+                        <span className="field-label">Course ID</span>
+                        <input className="input" value={pushForm.course_id} onChange={(e) => setPushForm((s) => ({ ...s, course_id: e.target.value }))} required />
+                      </label>
+                    ) : null}
+                    <label className="field">
+                      <span className="field-label">Title</span>
+                      <input className="input" value={pushForm.title} onChange={(e) => setPushForm((s) => ({ ...s, title: e.target.value }))} required />
+                    </label>
+                    <label className="field">
+                      <span className="field-label">Message</span>
+                      <textarea className="input textarea" rows={4} value={pushForm.body} onChange={(e) => setPushForm((s) => ({ ...s, body: e.target.value }))} required />
+                    </label>
+                    <label className="field">
+                      <span className="field-label">Click URL</span>
+                      <input className="input" value={pushForm.url} onChange={(e) => setPushForm((s) => ({ ...s, url: e.target.value }))} placeholder="/orders" />
+                    </label>
+                    <button className="button button-solid" type="submit" disabled={disabled}>
+                      {disabled ? 'Queueing…' : 'Send push'}
+                    </button>
+                  </form>
+                  <p className="muted" style={{ marginTop: 10 }}>
+                    Note: users must have allowed notifications and subscribed on their device.
+                  </p>
+                </div>
+
+                <div className="panel" style={{ margin: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <h4 className="h4" style={{ margin: 0 }}>Email outbox</h4>
+                    <button className="button button-ghost" type="button" onClick={refreshEmailOutbox} disabled={disabled}>
+                      Refresh
+                    </button>
+                  </div>
+                  <p className="muted" style={{ marginTop: 8 }}>
+                    Shows queued and failed emails. Failed emails retry automatically with backoff when SMTP is configured.
+                  </p>
+
+                  <div className="admin-split" style={{ marginTop: 10 }}>
+                    <label className="field">
+                      <span className="field-label">Status</span>
+                      <select
+                        className="input"
+                        value={emailOutboxFilter.status}
+                        onChange={(e) => setEmailOutboxFilter((s) => ({ ...s, status: e.target.value }))}
+                      >
+                        <option value="failed">Failed</option>
+                        <option value="pending">Pending</option>
+                        <option value="sent">Sent</option>
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span className="field-label">Search</span>
+                      <input
+                        className="input"
+                        value={emailOutboxFilter.q}
+                        onChange={(e) => setEmailOutboxFilter((s) => ({ ...s, q: e.target.value }))}
+                        placeholder="email or subject"
+                      />
+                    </label>
+                    <div className="button-row" style={{ alignSelf: 'end' }}>
+                      <button className="button button-solid" type="button" onClick={refreshEmailOutbox} disabled={disabled}>
+                        Apply
+                      </button>
+                    </div>
+                  </div>
+
+                  {emailOutboxStats ? (
+                    <div className="panel" style={{ marginTop: 12, background: 'rgba(201, 122, 74, 0.06)' }}>
+                      <div className="admin-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+                        <div>
+                          <div className="muted">Pending</div>
+                          <div className="h4" style={{ margin: 0 }}>{Number(emailOutboxStats.pending ?? 0)}</div>
+                        </div>
+                        <div>
+                          <div className="muted">Failed</div>
+                          <div className="h4" style={{ margin: 0 }}>{Number(emailOutboxStats.failed ?? 0)}</div>
+                        </div>
+                        <div>
+                          <div className="muted">Sent</div>
+                          <div className="h4" style={{ margin: 0 }}>{Number(emailOutboxStats.sent ?? 0)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="admin-table" style={{ marginTop: 12 }}>
+                    <div className="admin-row admin-head">
+                      <div>ID</div>
+                      <div>To</div>
+                      <div>Subject</div>
+                      <div>Status</div>
+                      <div>Attempts</div>
+                      <div>Next</div>
+                      <div>Action</div>
+                    </div>
+                    {(emailOutbox ?? []).slice(0, 25).map((m) => (
+                      <div key={m.id} className="admin-row">
+                        <div>{m.id}</div>
+                        <div style={{ wordBreak: 'break-word' }}>{m.to_email}</div>
+                        <div style={{ wordBreak: 'break-word' }}>{m.subject}</div>
+                        <div>{m.status}</div>
+                        <div>{m.attempts}</div>
+                        <div className="muted">{m.next_attempt_at ? new Date(m.next_attempt_at).toLocaleString() : '-'}</div>
+                        <div>
+                          {m.status === 'failed' ? (
+                            <button className="button button-ghost" type="button" onClick={() => resendOutboxEmail(m.id)} disabled={disabled}>
+                              Resend
+                            </button>
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {!(emailOutbox ?? []).length ? <p className="muted" style={{ marginTop: 10 }}>No emails found.</p> : null}
+                </div>
+
+                <div className="panel" style={{ margin: 0 }}>
                   <h4 className="h4">Automations</h4>
                   <ul className="list">
                     <li>
@@ -2751,25 +3117,162 @@ export default function AdminDashboardPage() {
           {tab === 'reports' ? (
             <div className="admin-panel">
               <h3 className="h3">Reports</h3>
-              <p className="muted">Coming soon.</p>
-              <div className="admin-two-col">
-                <div className="panel" style={{ margin: 0 }}>
-                  <h4 className="h4">Revenue</h4>
-                  <p className="muted">By date range, export-ready.</p>
-                  <button className="button button-solid" type="button" disabled>
-                    Generate report
+              {reportsError ? <p className="form-error">{reportsError}</p> : null}
+              <div className="panel" style={{ marginTop: 10 }}>
+                <h4 className="h4">Date range</h4>
+                <div className="button-row" style={{ marginTop: 10, flexWrap: 'wrap' }}>
+                  {[
+                    ['today', 'Today'],
+                    ['last_7', '7 days'],
+                    ['last_30', '30 days'],
+                    ['custom', 'Custom'],
+                  ].map(([id, label]) => (
+                    <button
+                      key={id}
+                      className={`button ${reportsPreset === id ? 'button-solid' : 'button-ghost'}`}
+                      type="button"
+                      onClick={() => setReportsPreset(id)}
+                      disabled={reportsStatus === 'loading'}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {reportsPreset === 'custom' ? (
+                  <div className="admin-split" style={{ marginTop: 12 }}>
+                    <label className="field">
+                      <span className="field-label">From</span>
+                      <input className="input" type="date" value={reportsFrom} onChange={(e) => setReportsFrom(e.target.value)} />
+                    </label>
+                    <label className="field">
+                      <span className="field-label">To</span>
+                      <input className="input" type="date" value={reportsTo} onChange={(e) => setReportsTo(e.target.value)} />
+                    </label>
+                  </div>
+                ) : null}
+
+                <div className="button-row" style={{ marginTop: 10 }}>
+                  <button className="button button-solid" type="button" onClick={generateReports} disabled={reportsStatus === 'loading'}>
+                    {reportsStatus === 'loading' ? 'Generating…' : 'Generate report'}
                   </button>
                 </div>
-                <div className="panel" style={{ margin: 0 }}>
-                  <h4 className="h4">Enrollments & completion</h4>
-                  <ul className="list">
-                    <li>Enrollments by course</li>
-                    <li>Coupon usage report</li>
-                    <li>Completion rate per course</li>
-                    <li>Q&A / support queries</li>
-                  </ul>
-                </div>
               </div>
+
+              {reportsData?.revenue || reportsData?.enrollments || reportsData?.ordersSummary || reportsData?.topCourses ? (
+                <div className="admin-two-col" style={{ marginTop: 16 }}>
+                  <div className="panel" style={{ margin: 0 }}>
+                    <h4 className="h4">Revenue</h4>
+                    <p className="muted">
+                      Total: {formatMoney(reportsData?.revenue?.totals?.total_sales_cents ?? 0, 'INR')} · Payments:{' '}
+                      {Number(reportsData?.revenue?.totals?.payments ?? 0)}
+                    </p>
+                    <div className="button-row" style={{ marginTop: 10, flexWrap: 'wrap' }}>
+                      <button className="button button-ghost" type="button" onClick={exportRevenueCsv} disabled={!reportsData?.revenue}>
+                        Export CSV
+                      </button>
+                      <button className="button button-ghost" type="button" onClick={exportRevenuePdf} disabled={!reportsData?.revenue}>
+                        Export PDF
+                      </button>
+                    </div>
+                    <div className="admin-table" style={{ marginTop: 12 }}>
+                      <div className="admin-row admin-head">
+                        <div>Day</div>
+                        <div>Revenue</div>
+                        <div>Payments</div>
+                      </div>
+                      {(reportsData?.revenue?.daily ?? []).slice(-14).map((d) => (
+                        <div key={String(d.day)} className="admin-row">
+                          <div>{String(d.day)}</div>
+                          <div>{formatMoney(d.revenue_cents, 'INR')}</div>
+                          <div>{Number(d.payments ?? 0)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="panel" style={{ margin: 0 }}>
+                    <h4 className="h4">Orders summary</h4>
+                    <p className="muted">Counts and totals by status.</p>
+                    <div className="button-row" style={{ marginTop: 10, flexWrap: 'wrap' }}>
+                      <button className="button button-ghost" type="button" onClick={exportOrdersCsv} disabled={!reportsData?.ordersSummary}>
+                        Export CSV
+                      </button>
+                      <button className="button button-ghost" type="button" onClick={exportOrdersPdf} disabled={!reportsData?.ordersSummary}>
+                        Export PDF
+                      </button>
+                    </div>
+                    <div className="admin-table" style={{ marginTop: 12 }}>
+                      <div className="admin-row admin-head">
+                        <div>Status</div>
+                        <div>Orders</div>
+                        <div>Total</div>
+                      </div>
+                      {(reportsData?.ordersSummary?.summary ?? []).map((r) => (
+                        <div key={String(r.status)} className="admin-row">
+                          <div>{String(r.status)}</div>
+                          <div>{Number(r.orders ?? 0)}</div>
+                          <div>{formatMoney(r.total_cents, 'INR')}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="panel" style={{ margin: 0 }}>
+                    <h4 className="h4">Enrollments</h4>
+                    <p className="muted">
+                      Total: {Number(reportsData?.enrollments?.totals?.total_enrollments ?? 0)} · Active students:{' '}
+                      {Number(reportsData?.enrollments?.totals?.active_students ?? 0)}
+                    </p>
+                    <div className="button-row" style={{ marginTop: 10, flexWrap: 'wrap' }}>
+                      <button className="button button-ghost" type="button" onClick={exportEnrollmentsCsv} disabled={!reportsData?.enrollments}>
+                        Export CSV
+                      </button>
+                      <button className="button button-ghost" type="button" onClick={exportEnrollmentsPdf} disabled={!reportsData?.enrollments}>
+                        Export PDF
+                      </button>
+                    </div>
+                    <div className="admin-table" style={{ marginTop: 12 }}>
+                      <div className="admin-row admin-head">
+                        <div>Day</div>
+                        <div>Enrollments</div>
+                      </div>
+                      {(reportsData?.enrollments?.daily ?? []).slice(-14).map((d) => (
+                        <div key={String(d.day)} className="admin-row">
+                          <div>{String(d.day)}</div>
+                          <div>{Number(d.enrollments ?? 0)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="panel" style={{ margin: 0 }}>
+                    <h4 className="h4">Top courses (by revenue)</h4>
+                    <p className="muted">Top 20 courses by revenue for this range.</p>
+                    <div className="button-row" style={{ marginTop: 10, flexWrap: 'wrap' }}>
+                      <button className="button button-ghost" type="button" onClick={exportTopCoursesCsv} disabled={!reportsData?.topCourses}>
+                        Export CSV
+                      </button>
+                      <button className="button button-ghost" type="button" onClick={exportTopCoursesPdf} disabled={!reportsData?.topCourses}>
+                        Export PDF
+                      </button>
+                    </div>
+                    <div className="admin-table" style={{ marginTop: 12 }}>
+                      <div className="admin-row admin-head">
+                        <div>Course</div>
+                        <div>Revenue</div>
+                        <div>Orders</div>
+                      </div>
+                      {(reportsData?.topCourses?.by_revenue ?? []).slice(0, 10).map((c) => (
+                        <div key={String(c.course_id)} className="admin-row">
+                          <div className="admin-cell-wrap">{c.title}</div>
+                          <div>{formatMoney(c.revenue_cents, 'INR')}</div>
+                          <div>{Number(c.orders ?? 0)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : null}
 

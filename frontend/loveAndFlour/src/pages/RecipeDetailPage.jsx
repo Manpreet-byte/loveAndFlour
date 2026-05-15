@@ -175,6 +175,14 @@ export default function RecipeDetailPage() {
   const [post, setPost] = useState(() => findPostBySlug(slug));
   const [related, setRelated] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    document.body.classList.add('recipe-detail-theme');
+    return () => {
+      document.body.classList.remove('recipe-detail-theme');
+    };
+  }, []);
+
   useEffect(() => {
     let active = true;
     const seeded = findPostBySlug(slug);

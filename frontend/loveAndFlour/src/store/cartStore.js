@@ -19,6 +19,7 @@ export const useCartStore = create(
     (set, get) => ({
       items: [],
       couponCode: '',
+      setItems: (items) => set({ items: Array.isArray(items) ? items : [] }),
       addCourse: (course) => {
         if (!course?.id) {
           return;
@@ -50,6 +51,13 @@ export const useCartStore = create(
       clearCouponCode: () => set({ couponCode: '' }),
       hasCourse: (courseId) => get().items.some((item) => item.id === courseId),
       cartCount: () => get().items.length,
+      buyNowCourse: (course) => {
+        if (!course?.id) return;
+        set({ items: [buildCartItem(course)], couponCode: '' });
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('lf:cart_event', { detail: { kind: 'buy_now', entity_type: 'course', entity_id: course.id } }));
+        }
+      },
     }),
     {
       name: 'love-and-flour-cart',

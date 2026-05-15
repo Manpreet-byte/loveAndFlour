@@ -33,6 +33,7 @@ export default function AboutPage() {
         title={cms?.title ?? 'About'}
         featuredImage={cms?.content?.featured_image_url ?? featuredImageOverride}
         contentHtml={cms.content_html}
+        pageClassName="page-white"
       />
     );
   }
@@ -50,6 +51,7 @@ export default function AboutPage() {
         title={page.title}
         featuredImage={featuredImageOverride || page.featuredImage}
         contentHtml={page.contentHtml}
+        pageClassName="page-white"
       />
     );
   }

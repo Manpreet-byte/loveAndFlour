@@ -277,12 +277,6 @@ export const api = {
     students: (token) => request('/api/instructor/students', { token }),
     earnings: (token) => request('/api/instructor/earnings', { token }),
   },
-  ai: {
-    chat: (token, payload) => request('/api/ai/chat', { method: 'POST', token, body: payload }),
-    lessonSummary: (token, payload) => request('/api/ai/lesson-summary', { method: 'POST', token, body: payload }),
-    lessonNotes: (token, payload) => request('/api/ai/lesson-notes', { method: 'POST', token, body: payload }),
-    history: (token, { limit } = {}) => request(limit ? `/api/ai/history?limit=${encodeURIComponent(limit)}` : '/api/ai/history', { token }),
-  },
   public: {
     courses: {
       list: () => request('/api/public/courses'),
@@ -525,6 +519,21 @@ export const api = {
 
     notifications: {
       broadcast: (token, payload) => request('/api/admin/notifications/broadcast', { method: 'POST', token, body: payload }),
+      push: (token, payload) => request('/api/admin/notifications/push', { method: 'POST', token, body: payload }),
+    },
+
+    emails: {
+      stats: (token) => request('/api/admin/emails/stats', { token }),
+      outbox: (token, { status, q, limit, offset } = {}) => {
+        const params = new URLSearchParams();
+        if (status) params.set('status', String(status));
+        if (q) params.set('q', String(q));
+        if (limit) params.set('limit', String(limit));
+        if (offset) params.set('offset', String(offset));
+        const qs = params.toString();
+        return request(qs ? `/api/admin/emails/outbox?${qs}` : '/api/admin/emails/outbox', { token });
+      },
+      resend: (token, id) => request(`/api/admin/emails/outbox/${encodeURIComponent(id)}/resend`, { method: 'POST', token }),
     },
 
     media: {

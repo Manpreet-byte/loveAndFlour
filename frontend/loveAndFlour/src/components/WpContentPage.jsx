@@ -1,11 +1,55 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import SectionHeading from './SectionHeading';
 import { sanitizeHtmlForApp } from '../utils/htmlSanitize';
 
-export default function WpContentPage({ badge = 'Page', title, featuredImage, contentHtml, backTo, backLabel }) {
+export default function WpContentPage({
+  badge = 'Page',
+  title,
+  featuredImage,
+  contentHtml,
+  backTo,
+  backLabel,
+  contentClassName = '',
+  pageClassName = '',
+}) {
   const safeHtml = contentHtml ? sanitizeHtmlForApp(contentHtml) : '';
+
+  // Initialize Elementor toggle/accordion functionality
+  useEffect(() => {
+    const setupToggles = () => {
+      const toggleTitles = document.querySelectorAll('.elementor-tab-title');
+
+      toggleTitles.forEach((title) => {
+        // Remove any existing listeners to avoid duplicates
+        const clone = title.cloneNode(true);
+        title.parentNode.replaceChild(clone, title);
+
+        // Add click handler to the cloned element
+        clone.addEventListener('click', (e) => {
+          e.preventDefault();
+          const isExpanded = clone.getAttribute('aria-expanded') === 'true';
+          clone.setAttribute('aria-expanded', !isExpanded);
+        });
+
+        // Handle keyboard: Enter and Space should toggle
+        clone.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            const isExpanded = clone.getAttribute('aria-expanded') === 'true';
+            clone.setAttribute('aria-expanded', !isExpanded);
+          }
+        });
+      });
+    };
+
+    // Run after a small delay to ensure DOM is fully rendered
+    const timer = setTimeout(setupToggles, 100);
+    return () => clearTimeout(timer);
+  }, [safeHtml]);
+
   return (
-    <main className="section">
+    <main className={`section${pageClassName ? ` ${pageClassName}` : ''}`}>
       <div className="container">
         {backTo ? (
           <div className="page-topline">
@@ -23,7 +67,12 @@ export default function WpContentPage({ badge = 'Page', title, featuredImage, co
           </div>
         ) : null}
 
-        {safeHtml ? <div className="panel prose-block" dangerouslySetInnerHTML={{ __html: safeHtml }} /> : null}
+        {safeHtml ? (
+          <div
+            className={`panel prose-block${contentClassName ? ` ${contentClassName}` : ''}`}
+            dangerouslySetInnerHTML={{ __html: safeHtml }}
+          />
+        ) : null}
       </div>
     </main>
   );

@@ -3,6 +3,7 @@ import SectionHeading from '../components/SectionHeading';
 import { useAuthStore } from '../store/authStore';
 import { api } from '../api/client';
 import { Link } from 'react-router-dom';
+import { ensurePushSubscribed } from '../utils/push';
 
 export default function ProfilePage() {
   const user = useAuthStore((s) => s.user);
@@ -13,6 +14,8 @@ export default function ProfilePage() {
   const [message, setMessage] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [pushStatus, setPushStatus] = useState('idle'); // idle | loading | done
+  const [pushMsg, setPushMsg] = useState('');
 
   useEffect(() => {
     useAuthStore.getState().refreshProfile();
@@ -38,6 +41,24 @@ export default function ProfilePage() {
       setMessage(err?.message ?? 'Unable to save profile.');
     } finally {
       setStatus('idle');
+    }
+  };
+
+  const enablePush = async () => {
+    if (!token || pushStatus === 'loading') return;
+    setPushStatus('loading');
+    setPushMsg('');
+    try {
+      const res = await ensurePushSubscribed({ token });
+      if (res?.ok) setPushMsg('Notifications enabled on this device.');
+      else if (res?.reason === 'denied') setPushMsg('Notifications permission denied in browser settings.');
+      else if (res?.reason === 'missing_public_key') setPushMsg('Push is not configured (missing VAPID public key).');
+      else setPushMsg('Unable to enable notifications on this device.');
+    } catch (err) {
+      setPushMsg(err?.message ?? 'Unable to enable notifications.');
+    } finally {
+      setPushStatus('done');
+      setTimeout(() => setPushStatus('idle'), 1500);
     }
   };
 
@@ -102,6 +123,19 @@ export default function ProfilePage() {
                 <div>
                   <p className="section-kicker">Role</p>
                   <p className="muted" style={{ marginTop: 8 }}>{user.role}</p>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 18 }}>
+                <p className="section-kicker">Notifications</p>
+                <p className="muted" style={{ marginTop: 8 }}>
+                  Enable push notifications on this device for reminders, order updates, and recordings.
+                </p>
+                {pushMsg ? <p className="muted" style={{ marginTop: 8 }}>{pushMsg}</p> : null}
+                <div className="button-row" style={{ marginTop: 10 }}>
+                  <button className="button button-ghost" type="button" onClick={enablePush} disabled={!token || pushStatus === 'loading'}>
+                    {pushStatus === 'loading' ? 'Enabling…' : 'Enable notifications'}
+                  </button>
                 </div>
               </div>
             </>

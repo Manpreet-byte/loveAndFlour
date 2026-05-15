@@ -14,6 +14,10 @@ export async function ensurePushSubscribed({ token }) {
   if (!publicKey) return { ok: false, reason: 'missing_public_key' };
   if (typeof window === 'undefined') return { ok: false };
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return { ok: false, reason: 'unsupported' };
+  // Push requires a secure context (HTTPS), except for localhost.
+  const host = window.location.hostname;
+  const isLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+  if (!isLocalhost && window.location.protocol !== 'https:') return { ok: false, reason: 'insecure_context' };
 
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return { ok: false, reason: 'denied' };
@@ -30,4 +34,3 @@ export async function ensurePushSubscribed({ token }) {
   await api.user.pushSubscribe(token, sub.toJSON());
   return { ok: true };
 }
-

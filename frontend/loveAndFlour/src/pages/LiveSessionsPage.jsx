@@ -10,6 +10,8 @@ function formatDateTime(value) {
 }
 
 function deriveStatus(session, nowMs) {
+  const backend = String(session?.derived_state ?? session?.derivedState ?? '').toLowerCase();
+  if (backend) return backend === 'sold-out' ? 'sold_out' : backend;
   const raw = String(session?.status ?? '').toLowerCase();
   if (['archived', 'cancelled', 'canceled'].includes(raw)) return raw === 'canceled' ? 'cancelled' : raw;
 
@@ -22,7 +24,7 @@ function deriveStatus(session, nowMs) {
   const enrolledCount = Number(session?.enrolled_count ?? session?.enrolledCount ?? 0);
   if (seatLimit > 0 && enrolledCount >= seatLimit) return 'sold_out';
 
-  if (endMs && Number.isFinite(endMs) && nowMs >= endMs) return 'completed';
+  if (endMs && Number.isFinite(endMs) && nowMs >= endMs) return 'ended';
   if (startMs && Number.isFinite(startMs) && nowMs >= startMs) return 'live';
   return 'upcoming';
 }
@@ -30,7 +32,9 @@ function deriveStatus(session, nowMs) {
 function statusLabel(status) {
   if (status === 'live') return 'Live now';
   if (status === 'sold_out') return 'Sold out';
-  if (status === 'completed') return 'Completed';
+  if (status === 'ended') return 'Ended';
+  if (status === 'recording-processing') return 'Recording processing';
+  if (status === 'recording-ready') return 'Recording ready';
   if (status === 'cancelled') return 'Cancelled';
   if (status === 'archived') return 'Archived';
   return 'Upcoming';

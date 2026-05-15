@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import SectionHeading from '../components/SectionHeading';
 import { findCourseBySlug } from '../data/seededContent';
@@ -30,9 +30,12 @@ function extractGalleryFromHtml(contentHtml) {
 
 export default function CourseDetailPage() {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const [course, setCourse] = useState(() => findCourseBySlug(slug));
   const addCourse = useCartStore((state) => state.addCourse);
   const removeCourse = useCartStore((state) => state.removeCourse);
+  const buyNowCourse = useCartStore((state) => state.buyNowCourse);
+  const cartCount = useCartStore((state) => state.items.length);
   const [activeImage, setActiveImage] = useState(null);
 
   useEffect(() => {
@@ -184,6 +187,22 @@ export default function CourseDetailPage() {
                 onClick={() => (inCart ? removeCourse(course.id) : addCourse(course))}
               >
                 {inCart ? 'Remove from cart' : 'Add to cart'}
+              </button>
+
+              <button
+                className="button button-ghost"
+                type="button"
+                style={{ width: '100%', marginTop: 10 }}
+                onClick={() => {
+                  if (cartCount > 0 && !inCart) {
+                    const ok = typeof window === 'undefined' ? true : window.confirm('Buy now will replace your cart with this course. Continue?');
+                    if (!ok) return;
+                  }
+                  buyNowCourse(course);
+                  navigate('/checkout');
+                }}
+              >
+                Buy now
               </button>
 
               <p className="fineprint course-detail-cart-note">

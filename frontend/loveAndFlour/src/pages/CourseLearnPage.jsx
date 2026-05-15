@@ -421,50 +421,14 @@ export default function CourseLearnPage() {
     }
   };
 
-  const aiSend = async ({ text }) => {
-    if (!token || !text) return;
-    const msg = String(text).trim();
-    if (!msg) return;
-    setAiBusy(true);
-    setAiError('');
-    try {
-      setAiMessages((m) => [...m, { role: 'user', content: msg }]);
-      const payload = {
-        conversation_id: aiConversationId ?? null,
-        scope: { type: 'lesson', course_id: course?.id ?? null, lesson_id: activeLesson?.id ?? null },
-        message: msg,
-      };
-      const data = await api.ai.chat(token, payload);
-      if (data?.conversation_id) setAiConversationId(data.conversation_id);
-      if (data?.message?.content) setAiMessages((m) => [...m, { role: 'assistant', content: data.message.content }]);
-    } catch (err) {
-      setAiError(err?.message ?? 'AI assistant unavailable');
-    } finally {
-      setAiBusy(false);
-    }
+  // AI assistant removed from this project (placeholder infrastructure cleaned up).
+  // Keep state variables intact to avoid refactors, but disable actions.
+  const aiSend = async () => {
+    setAiError('AI assistant is disabled in this build.');
   };
 
-  const aiQuick = async (kind) => {
-    if (!token || !course?.id || !activeLesson?.id) return;
-    setAiStatus('loading');
-    setAiError('');
-    try {
-      if (kind === 'summary') {
-        const data = await api.ai.lessonSummary(token, { course_id: course.id, lesson_id: activeLesson.id });
-        setAiMessages((m) => [...m, { role: 'assistant', content: data?.summary ?? 'No summary available.' }]);
-      } else if (kind === 'notes') {
-        const data = await api.ai.lessonNotes(token, { course_id: course.id, lesson_id: activeLesson.id });
-        setAiMessages((m) => [...m, { role: 'assistant', content: data?.notes ?? 'No notes available.' }]);
-      } else if (kind === 'explain') {
-        await aiSend({ text: 'Explain this lesson simply, in beginner-friendly steps.' });
-      } else if (kind === 'takeaways') {
-        await aiSend({ text: 'Give me 5 key takeaways from this lesson.' });
-      }
-      setAiStatus('idle');
-    } catch (err) {
-      setAiStatus('error');
-      setAiError(err?.message ?? 'AI request failed');
-    }
+  const aiQuick = async () => {
+    setAiError('AI assistant is disabled in this build.');
   };
 
   const isCourseCompleted = useMemo(() => {
@@ -793,61 +757,15 @@ export default function CourseLearnPage() {
                       </button>
                     </div>
                     <p className="muted" style={{ marginTop: 8 }}>
-                      Ask questions, get summaries, and generate notes for this lesson.
+                      Disabled in this build.
                     </p>
 
                     {aiOpen ? (
                       <div style={{ marginTop: 12 }}>
                         {aiError ? <p className="form-error">{aiError}</p> : null}
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          <button className="button button-ghost" type="button" onClick={() => aiQuick('summary')} disabled={aiStatus === 'loading' || aiBusy}>
-                            Summarize
-                          </button>
-                          <button className="button button-ghost" type="button" onClick={() => aiQuick('notes')} disabled={aiStatus === 'loading' || aiBusy}>
-                            Create notes
-                          </button>
-                          <button className="button button-ghost" type="button" onClick={() => aiQuick('takeaways')} disabled={aiStatus === 'loading' || aiBusy}>
-                            Key takeaways
-                          </button>
-                          <button className="button button-ghost" type="button" onClick={() => aiQuick('explain')} disabled={aiStatus === 'loading' || aiBusy}>
-                            Explain simply
-                          </button>
-                        </div>
-
-                        <div className="panel" style={{ marginTop: 12, maxHeight: 320, overflow: 'auto' }}>
-                          {!aiMessages.length ? <p className="muted">Start by asking a question about this lesson.</p> : null}
-                          {aiMessages.length ? (
-                            <ul className="list">
-                              {aiMessages.map((m, idx) => (
-                                <li key={`${m.role}-${idx}`}>
-                                  <strong>{m.role === 'assistant' ? 'Assistant' : 'You'}</strong>
-                                  <div className="muted" style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{m.content}</div>
-                                </li>
-                              ))}
-                            </ul>
-                          ) : null}
-                        </div>
-
-                        <div style={{ marginTop: 12 }}>
-                          <label className="field">
-                            <span className="field-label">Ask</span>
-                            <textarea className="input textarea" rows={3} value={aiDraft} onChange={(e) => setAiDraft(e.target.value)} disabled={aiBusy} />
-                          </label>
-                          <div className="button-row">
-                            <button
-                              className="button button-solid"
-                              type="button"
-                              onClick={() => {
-                                const text = aiDraft;
-                                setAiDraft('');
-                                aiSend({ text });
-                              }}
-                              disabled={aiBusy}
-                            >
-                              {aiBusy ? 'Thinking…' : 'Send'}
-                            </button>
-                          </div>
-                        </div>
+                        <button className="button button-solid" type="button" onClick={aiQuick}>
+                          Learn more
+                        </button>
                       </div>
                     ) : null}
                   </div>

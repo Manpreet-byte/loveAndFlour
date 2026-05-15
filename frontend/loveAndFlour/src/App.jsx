@@ -155,8 +155,11 @@ export default function App() {
     useAuthStore.getState().refreshProfile();
   }, [shouldValidate]);
 
+  const isAboutPage = location.pathname === '/about';
+  const isCourseDetailPage = location.pathname.startsWith('/courses/') && location.pathname !== '/courses';
+
   return (
-    <div className="page">
+    <div className={`page${isAboutPage ? ' page-white' : ''}${isCourseDetailPage ? ' course-detail-theme' : ''}`}>
       <SiteHeader onCartClick={() => setCartOpen(true)} />
       <Routes>
         <Route path="/" element={<HomePage />} />

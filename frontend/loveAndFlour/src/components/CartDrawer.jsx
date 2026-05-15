@@ -133,13 +133,6 @@ export default function CartDrawer({ open, onClose }) {
                         Remove
                       </button>
                     </div>
-                    <div className="cart-item-links">
-                      {item.link ? (
-                        <a className="cart-item-link" href={item.link} target="_blank" rel="noreferrer">
-                          View original workshop
-                        </a>
-                      ) : null}
-                    </div>
                   </div>
                 </li>
               ))}

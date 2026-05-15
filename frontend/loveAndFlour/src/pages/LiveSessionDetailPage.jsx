@@ -17,6 +17,26 @@ function safeMs(value) {
 }
 
 function deriveStatus(session, nowMs) {
+  const backend = String(session?.derived_state ?? session?.derivedState ?? '').toLowerCase();
+  if (
+    [
+      'upcoming',
+      'live',
+      'ended',
+      'recording-processing',
+      'recording-ready',
+      'sold-out',
+      'cancelled',
+    ].includes(backend)
+  ) {
+    // Small UX helper: upcoming within 10 minutes => starting soon.
+    if (backend === 'upcoming') {
+      const startMs = safeMs(session?.start_time ?? session?.scheduled_at ?? session?.startTime);
+      if (startMs && startMs - nowMs <= 10 * 60 * 1000 && startMs - nowMs > 0) return 'starting_soon';
+    }
+    return backend === 'sold-out' ? 'sold_out' : backend;
+  }
+
   const raw = String(session?.status ?? '').toLowerCase();
   if (['archived', 'cancelled', 'canceled'].includes(raw)) return raw === 'canceled' ? 'cancelled' : raw;
 
@@ -27,7 +47,7 @@ function deriveStatus(session, nowMs) {
   const enrolledCount = Number(session?.enrolled_count ?? session?.enrolledCount ?? 0);
   if (seatLimit > 0 && enrolledCount >= seatLimit) return 'sold_out';
 
-  if (endMs && nowMs >= endMs) return 'completed';
+  if (endMs && nowMs >= endMs) return 'ended';
   if (startMs && nowMs >= startMs) return 'live';
   if (startMs && startMs - nowMs <= 10 * 60 * 1000 && startMs - nowMs > 0) return 'starting_soon';
   return 'upcoming';
@@ -36,8 +56,10 @@ function deriveStatus(session, nowMs) {
 function statusLabel(status) {
   if (status === 'live') return 'Live now';
   if (status === 'starting_soon') return 'Starting soon';
+  if (status === 'ended') return 'Ended';
+  if (status === 'recording-processing') return 'Recording processing';
+  if (status === 'recording-ready') return 'Recording ready';
   if (status === 'sold_out') return 'Sold out';
-  if (status === 'completed') return 'Completed';
   if (status === 'cancelled') return 'Cancelled';
   if (status === 'archived') return 'Archived';
   return 'Upcoming';
@@ -190,35 +212,55 @@ export default function LiveSessionDetailPage() {
     return formatCountdown(diff);
   }, [startMs, nowMs, tick]);
 
-  const canAttemptJoin = Boolean(token && enrolled && sessionId && (derived === 'live' || derived === 'starting_soon'));
+  const joinWindowOk = useMemo(() => {
+    if (!startMs) return false;
+    const diff = startMs - nowMs;
+    if (derived === 'live') return true;
+    if (derived === 'starting_soon') return true;
+    if (derived === 'upcoming') return diff <= 15 * 60 * 1000;
+    return false;
+  }, [derived, startMs, nowMs, tick]);
+
+  const canAttemptJoin = Boolean(token && enrolled && sessionId && joinWindowOk);
 
   const loadAccess = async () => {
-    if (!canAttemptJoin) return;
     if (accessStatus === 'loading') return;
+    if (!token) {
+      navigate('/login', { replace: true, state: { from: { pathname: `/live-sessions/${slug}` } } });
+      return;
+    }
+    if (!enrolled) {
+      setAccessError('This workshop is locked. Please complete enrollment to join.');
+      return;
+    }
     setAccessStatus('loading');
     setAccessError('');
     try {
       const res = await api.liveSessions.access(token, sessionId);
       const accessPayload = res?.access ?? res?.data ?? res;
-      const urlFromAccess = accessPayload?.live_url ?? accessPayload?.liveUrl ?? '';
-      if (urlFromAccess) {
-        setAccess(accessPayload ?? null);
-        setAccessStatus('ready');
-        window.open(urlFromAccess, '_blank', 'noopener,noreferrer');
-        return;
-      }
-
-      // Primary path for backends that include join URL only for enrolled users.
-      const joinUrl = mySession?.join_url ?? mySession?.joinUrl ?? mySession?.zoom_join_url ?? mySession?.zoomJoinUrl ?? '';
+      const joinUrl =
+        accessPayload?.join?.zoom_join_url ??
+        accessPayload?.join?.live_url ??
+        accessPayload?.live_url ??
+        accessPayload?.liveUrl ??
+        '';
       if (joinUrl) {
-        setAccess({ live_url: joinUrl, access_status: 'ok' });
+        setAccess(accessPayload ?? null);
         setAccessStatus('ready');
         window.open(joinUrl, '_blank', 'noopener,noreferrer');
         return;
       }
 
+      // If recording is ready, show recordings panel (no redirect).
+      const canWatch = Boolean(accessPayload?.recordings?.can_watch);
+      if (canWatch) {
+        setAccess(accessPayload ?? null);
+        setAccessStatus('ready');
+        return;
+      }
+
       setAccessStatus('error');
-      setAccessError('Workshop link is not available yet. Please try again shortly.');
+      setAccessError('Access is not available yet. Please try again shortly.');
     } catch (err) {
       if (err?.status === 401) {
         navigate('/login', { replace: true, state: { from: { pathname: `/live-sessions/${slug}` } } });
@@ -254,27 +296,44 @@ export default function LiveSessionDetailPage() {
     navigate('/checkout');
   };
 
-  // Recordings: show after completion, user-only.
+  // Recordings: backend-driven states.
   useEffect(() => {
     if (!token) return;
     if (!sessionId) return;
-    if (derived !== 'completed') return;
     let active = true;
     setRecordingStatus('loading');
-    api.user.recordings
-      .list(token)
-      .then((data) => {
-        if (!active) return;
-        const list = data?.recordings ?? [];
-        const filtered = list.filter((r) => Number(r?.live_session_id) === Number(sessionId));
-        setRecordings(filtered);
-        setRecordingStatus('ready');
-      })
-      .catch(() => {
-        if (!active) return;
-        setRecordings([]);
-        setRecordingStatus('ready');
-      });
+    if (derived === 'recording-ready' || derived === 'recording-processing' || derived === 'ended') {
+      api.liveSessions
+        .access(token, sessionId)
+        .then((data) => {
+          if (!active) return;
+          const payload = data?.access ?? data ?? null;
+          const items = payload?.recordings?.items ?? [];
+          setRecordings(items);
+          setRecordingStatus('ready');
+        })
+        .catch(() => {
+          if (!active) return;
+          setRecordings([]);
+          setRecordingStatus('ready');
+        });
+    } else {
+      // Fallback for legacy backends.
+      api.user.recordings
+        .list(token)
+        .then((data) => {
+          if (!active) return;
+          const list = data?.recordings ?? [];
+          const filtered = list.filter((r) => Number(r?.live_session_id) === Number(sessionId));
+          setRecordings(filtered);
+          setRecordingStatus('ready');
+        })
+        .catch(() => {
+          if (!active) return;
+          setRecordings([]);
+          setRecordingStatus('ready');
+        });
+    }
     return () => {
       active = false;
     };
@@ -345,7 +404,11 @@ export default function LiveSessionDetailPage() {
                   </button>
                 ) : enrolled ? (
                   <button className="button button-solid" type="button" onClick={loadAccess} disabled={!canAttemptJoin || accessStatus === 'loading'}>
-                    {accessStatus === 'loading' ? 'Preparing access…' : derived === 'completed' ? 'View recordings' : 'Join live workshop'}
+                    {accessStatus === 'loading'
+                      ? 'Preparing access…'
+                      : derived === 'recording-ready' || derived === 'recording-processing' || derived === 'ended'
+                        ? 'View recordings'
+                        : 'Join live workshop'}
                   </button>
                 ) : (
                   <button className="button button-solid" type="button" onClick={startEnrollment}>
@@ -381,7 +444,7 @@ export default function LiveSessionDetailPage() {
               ) : null}
             </div>
 
-            {derived === 'completed' && token ? (
+            {(derived === 'recording-ready' || derived === 'recording-processing' || derived === 'ended') && token ? (
               <div className="panel">
                 <h2 className="h3">Recordings</h2>
                 {recordingStatus === 'loading' ? (
@@ -402,7 +465,7 @@ export default function LiveSessionDetailPage() {
                               </a>
                             ) : (
                               <button className="button button-ghost" type="button" disabled>
-                                Processing
+                                Processing recording
                               </button>
                             )}
                           </div>
@@ -411,7 +474,11 @@ export default function LiveSessionDetailPage() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="muted">Recordings are not available yet. Please check back later.</p>
+                  <p className="muted">
+                    {derived === 'recording-ready'
+                      ? 'Recording is ready, but the link is not available yet.'
+                      : 'Processing recording… Please check back later.'}
+                  </p>
                 )}
               </div>
             ) : null}
